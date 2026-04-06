@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: algo-trading-backend
+    env: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "cd backend && gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: API_SECRET
+        value: placeholder_update_in_render_dashboard
