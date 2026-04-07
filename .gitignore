@@ -33,3 +33,7 @@ pip-delete-this-directory.txt
 # OS
 .DS_Store
 Thumbs.db
+
+# Backup folders
+algotrader/
+algotrading/
