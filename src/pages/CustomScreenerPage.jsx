@@ -340,7 +340,7 @@ export default function CustomScreenerPage() {
                 <span className="badge" style={{ background: 'var(--c-accent-bg)', color: 'var(--c-accent)', fontSize: '10px' }}>STRATEGY C</span>
               </div>
               <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--c-text-muted)', marginTop: '4px' }}>
-                Priority: <b>MID-CAP > LARGE-CAP > SMALL-CAP</b> (Sorted by Relative Strength)
+                Priority: <b>MID-CAP &gt; LARGE-CAP &gt; SMALL-CAP</b> (Sorted by Relative Strength)
               </div>
             </div>
             <label className="toggle-switch">
