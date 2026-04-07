@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { NIFTY_500 } from '../data/nseUniverse';
-import { getStockCurrentPrice } from '../data/mockData';
+// Added getStockHistory to your imports so the MiniCharts don't crash!
+import { getStockCurrentPrice, getStockHistory } from '../data/mockData';
 import { calculateRSI, calculateMACD, calculateStochRSI, calculateEMA, getSignal } from '../utils/indicators';
 import ScannerInput from '../components/ScannerInput';
 
@@ -185,7 +186,7 @@ export default function ScannerPage() {
   const [loadingScanner, setLoadingScanner] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 20;
+  const rowsPerPage = 50; // Changed from 20 to 50 per page!
 
   // Fetch from Python FastAPI Backend using vectorized NIFTY 500 endpoint
   useEffect(() => {
@@ -198,15 +199,19 @@ export default function ScannerPage() {
         if (!res.ok) throw new Error('API Error');
         const data = await res.json();
         
-        if (data.stocks && isMounted) {
-          const merged = data.stocks.map(apiStock => {
+        // Ensure we safely map the 500 stocks coming from Hugging Face
+        const stocksList = Array.isArray(data) ? data : (data.stocks || []);
+        
+        if (stocksList && isMounted) {
+          const merged = stocksList.map(apiStock => {
             const meta = NIFTY_500.find(s => s.symbol === apiStock.symbol) || { name: apiStock.symbol, sector: 'Others' };
             return {
               ...apiStock,
               name: meta.name,
               sector: meta.sector,
-              stochK: null,
-              stochD: null,
+              stochK: apiStock.stochK || null,
+              stochD: apiStock.stochD || null,
+              signal: apiStock.signal || 'NEUTRAL'
             };
           });
           setStocksWithIndicators(merged);
@@ -230,19 +235,26 @@ export default function ScannerPage() {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(s =>
-        s.symbol.toLowerCase().includes(term) || s.name.toLowerCase().includes(term)
+        (s.symbol && s.symbol.toLowerCase().includes(term)) || 
+        (s.name && s.name.toLowerCase().includes(term))
       );
     }
     if (filterSignal !== 'ALL') {
-      result = result.filter(s => s.signal === filterSignal);
+      result = result.filter(s => {
+        const sig = (s.signal || '').toUpperCase();
+        if (filterSignal === 'BUY') return sig.includes('BUY');
+        if (filterSignal === 'SELL') return sig.includes('SELL');
+        if (filterSignal === 'NEUTRAL') return !sig.includes('BUY') && !sig.includes('SELL');
+        return true;
+      });
     }
     if (filterSector !== 'ALL') {
       result = result.filter(s => s.sector === filterSector);
     }
 
     result.sort((a, b) => {
-      let valA = a[sortBy];
-      let valB = b[sortBy];
+      let valA = a[sortBy] || '';
+      let valB = b[sortBy] || '';
       if (typeof valA === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
       if (valA < valB) return sortDir === 'asc' ? -1 : 1;
       if (valA > valB) return sortDir === 'asc' ? 1 : -1;
@@ -266,10 +278,14 @@ export default function ScannerPage() {
     return filteredStocks.slice(firstPageIndex, firstPageIndex + rowsPerPage);
   }, [currentPage, filteredStocks]);
 
+  // Safely upgraded signal counters to catch all types of signals!
   const signalCounts = useMemo(() => ({
-    BUY: stocksWithIndicators.filter(s => s.signal === 'BUY').length,
-    SELL: stocksWithIndicators.filter(s => s.signal === 'SELL').length,
-    NEUTRAL: stocksWithIndicators.filter(s => s.signal === 'NEUTRAL').length,
+    BUY: stocksWithIndicators.filter(s => (s.signal || '').toUpperCase().includes('BUY')).length,
+    SELL: stocksWithIndicators.filter(s => (s.signal || '').toUpperCase().includes('SELL')).length,
+    NEUTRAL: stocksWithIndicators.filter(s => {
+        const sig = (s.signal || '').toUpperCase();
+        return !sig.includes('BUY') && !sig.includes('SELL');
+    }).length,
   }), [stocksWithIndicators]);
 
   const SortIcon = ({ col }) => {
@@ -278,7 +294,7 @@ export default function ScannerPage() {
   };
 
   const getRSIColor = (rsi) => {
-    if (rsi === null) return 'var(--c-text-muted)';
+    if (rsi === null || rsi === undefined) return 'var(--c-text-muted)';
     if (rsi < 30) return 'var(--c-profit)';
     if (rsi > 70) return 'var(--c-loss)';
     return 'var(--c-text-secondary)';
@@ -379,55 +395,61 @@ export default function ScannerPage() {
                     <div style={{ color: 'var(--c-text-muted)' }}>Broad Market Bulk Download in progress. Fetching NIFTY 500 variables... (takes ~15 sec)</div>
                   </td>
                 </tr>
-              ) : currentTableData.length > 0 ? currentTableData.map(stock => (
-                <tr
-                  key={stock.symbol}
-                  onClick={() => setSelectedStock(stock.symbol)}
-                  className="scanner-row-clickable"
-                  title={`Click to view NSE:${stock.symbol} chart`}
-                >
-                  <td>
-                    <div>
-                      <div style={{ fontWeight: 600, color: 'var(--c-text-primary)' }}>{stock.symbol}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--c-text-muted)' }}>{stock.name}</div>
-                    </div>
-                  </td>
-                  <td><span className="badge badge-neutral">{stock.sector}</span></td>
-                  <td style={{ fontWeight: 600 }}>₹{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td className={stock.changePercent >= 0 ? 'text-profit' : 'text-loss'} style={{ fontWeight: 600 }}>
-                    {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
-                  </td>
-                  <td>
-                    <div className="mini-chart-cell">
-                      <MiniChart symbol={stock.symbol} />
-                    </div>
-                  </td>
-                  <td style={{ color: getRSIColor(stock.rsi), fontWeight: 600 }}>
-                    {stock.rsi !== null ? stock.rsi.toFixed(1) : '—'}
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '11px' }}>
-                      <span style={{ color: stock.macdHist >= 0 ? 'var(--c-profit)' : 'var(--c-loss)' }}>
-                        H: {stock.macdHist.toFixed(2)}
+              ) : currentTableData.length > 0 ? currentTableData.map(stock => {
+                const isBuy = (stock.signal || '').toUpperCase().includes('BUY');
+                const isSell = (stock.signal || '').toUpperCase().includes('SELL');
+                const signalClass = isBuy ? 'badge-buy' : isSell ? 'badge-sell' : 'badge-neutral';
+                
+                return (
+                  <tr
+                    key={stock.symbol}
+                    onClick={() => setSelectedStock(stock.symbol)}
+                    className="scanner-row-clickable"
+                    title={`Click to view NSE:${stock.symbol} chart`}
+                  >
+                    <td>
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--c-text-primary)' }}>{stock.symbol}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--c-text-muted)' }}>{stock.name}</div>
+                      </div>
+                    </td>
+                    <td><span className="badge badge-neutral">{stock.sector}</span></td>
+                    <td style={{ fontWeight: 600 }}>₹{(stock.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td className={(stock.changePercent || 0) >= 0 ? 'text-profit' : 'text-loss'} style={{ fontWeight: 600 }}>
+                      {(stock.changePercent || 0) >= 0 ? '+' : ''}{(stock.changePercent || 0).toFixed(2)}%
+                    </td>
+                    <td>
+                      <div className="mini-chart-cell">
+                        <MiniChart symbol={stock.symbol} />
+                      </div>
+                    </td>
+                    <td style={{ color: getRSIColor(stock.rsi), fontWeight: 600 }}>
+                      {stock.rsi !== null && stock.rsi !== undefined ? stock.rsi.toFixed(1) : '—'}
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '11px' }}>
+                        <span style={{ color: (stock.macdHist || 0) >= 0 ? 'var(--c-profit)' : 'var(--c-loss)' }}>
+                          H: {(stock.macdHist || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '11px' }}>
+                        <span>K: {stock.stochK !== null && stock.stochK !== undefined ? stock.stochK.toFixed(1) : '—'}</span>
+                        {' '}
+                        <span style={{ color: 'var(--c-text-muted)' }}>D: {stock.stochD !== null && stock.stochD !== undefined ? stock.stochD.toFixed(1) : '—'}</span>
+                      </div>
+                    </td>
+                    <td style={{ fontSize: '12px' }}>₹{(stock.ema20 || 0).toFixed(0)}</td>
+                    <td style={{ fontSize: '12px' }}>₹{(stock.ema50 || 0).toFixed(0)}</td>
+                    <td>
+                      <span className={`badge ${signalClass}`}>
+                        {stock.signal || 'NEUTRAL'}
                       </span>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: '11px' }}>
-                      <span>K: {stock.stochK !== null ? stock.stochK.toFixed(1) : '—'}</span>
-                      {' '}
-                      <span style={{ color: 'var(--c-text-muted)' }}>D: {stock.stochD !== null ? stock.stochD.toFixed(1) : '—'}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontSize: '12px' }}>₹{stock.ema20.toFixed(0)}</td>
-                  <td style={{ fontSize: '12px' }}>₹{stock.ema50.toFixed(0)}</td>
-                  <td>
-                    <span className={`badge ${stock.signal === 'BUY' ? 'badge-buy' : stock.signal === 'SELL' ? 'badge-sell' : 'badge-neutral'}`}>
-                      {stock.signal}
-                    </span>
-                  </td>
-                </tr>
-              )) : (
+                    </td>
+                  </tr>
+                );
+              }) : (
                 <tr>
                    <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--sp-xl)' }}>No matching stocks found in NIFTY 500.</td>
                 </tr>
