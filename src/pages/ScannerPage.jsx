@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { NIFTY_500 } from '../data/nseUniverse';
-// Added getStockHistory to your imports so the MiniCharts don't crash!
+// Using NIFTY_500 for metadata (names/sectors)
+import { NIFTY_500 } from '../data/nseUniverse'; 
 import { getStockCurrentPrice, getStockHistory } from '../data/mockData';
 import { calculateRSI, calculateMACD, calculateStochRSI, calculateEMA, getSignal } from '../utils/indicators';
 import ScannerInput from '../components/ScannerInput';
@@ -17,12 +17,12 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
 
-/* ── Lightweight Sparkline Chart (Fixes browser freezing from 200 TV Widgets) ── */
+/* ── Lightweight Sparkline Chart ── */
 function MiniChart({ symbol }) {
   const history = useMemo(() => getStockHistory(symbol), [symbol]);
   
   const data = {
-    labels: history.dates.slice(-20), // Last 20 days
+    labels: history.dates.slice(-20),
     datasets: [{
       data: history.closes.slice(-20),
       borderColor: history.closes[history.closes.length-1] >= history.closes[history.closes.length-2] ? '#10b981' : '#ef4444',
@@ -76,10 +76,7 @@ function ChartModal({ symbol, onClose }) {
       hotlist: false,
       backgroundColor: 'rgba(10, 14, 23, 1)',
       gridColor: 'rgba(148, 163, 184, 0.06)',
-      studies: [
-        'RSI@tv-basicstudies',
-        'MAExp@tv-basicstudies',
-      ],
+      studies: ['RSI@tv-basicstudies', 'MAExp@tv-basicstudies'],
     });
 
     const widgetDiv = document.createElement('div');
@@ -89,26 +86,14 @@ function ChartModal({ symbol, onClose }) {
     containerRef.current.appendChild(widgetDiv);
     containerRef.current.appendChild(script);
 
-    // Prevent body scroll
     document.body.style.overflow = 'hidden';
-
     return () => {
       document.body.style.overflow = '';
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
   }, [symbol]);
 
-  const handleOverlayClick = (e) => {
-    if (e.target === overlayRef.current) onClose();
-  };
-
-  useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [onClose]);
-
-  if (!symbol) return null;
+  const handleOverlayClick = (e) => { if (e.target === overlayRef.current) onClose(); };
 
   return (
     <div className="chart-modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
@@ -118,7 +103,7 @@ function ChartModal({ symbol, onClose }) {
             <span className="pulse-dot green"></span>
             <span>NSE:{symbol} — Advanced Chart</span>
           </div>
-          <button className="chart-modal-close" onClick={onClose} id="close-chart-modal">
+          <button className="chart-modal-close" onClick={onClose}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -132,48 +117,6 @@ function ChartModal({ symbol, onClose }) {
   );
 }
 
-const calculateMockDataForStock = (stock) => {
-  const history = getStockHistory(stock.symbol);
-  const closes = history.closes;
-  const current = getStockCurrentPrice(stock.symbol);
-  const len = closes.length;
-
-  const rsiValues = calculateRSI(closes, 14);
-  const macdData = calculateMACD(closes, 12, 26, 9);
-  const stochData = calculateStochRSI(closes, 14, 14, 3, 3);
-  const ema20 = calculateEMA(closes, 20);
-  const ema50 = calculateEMA(closes, 50);
-
-  const rsi = rsiValues[len - 1];
-  const macdHist = macdData.histogram[len - 1];
-  const macdLine = macdData.macd[len - 1];
-  const macdSignalLine = macdData.signal[len - 1];
-  const stochK = stochData.k[len - 1];
-  const stochD = stochData.d[len - 1];
-  const ema20Val = ema20[len - 1];
-  const ema50Val = ema50[len - 1];
-
-  const signal = getSignal(rsi, macdHist, stochK);
-
-  return {
-    ...stock,
-    price: current.price,
-    change: current.change,
-    changePercent: current.changePercent,
-    volume: current.volume,
-    rsi: rsi !== null ? Math.round(rsi * 100) / 100 : null,
-    macdLine: Math.round(macdLine * 100) / 100,
-    macdSignal: Math.round(macdSignalLine * 100) / 100,
-    macdHist: Math.round(macdHist * 100) / 100,
-    stochK: stochK !== null ? Math.round(stochK * 100) / 100 : null,
-    stochD: stochD !== null ? Math.round(stochD * 100) / 100 : null,
-    ema20: Math.round(ema20Val * 100) / 100,
-    ema50: Math.round(ema50Val * 100) / 100,
-    signal,
-    isLive: false
-  };
-};
-
 export default function ScannerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSignal, setFilterSignal] = useState('ALL');
@@ -185,33 +128,31 @@ export default function ScannerPage() {
   const [stocksWithIndicators, setStocksWithIndicators] = useState([]);
   const [loadingScanner, setLoadingScanner] = useState(true);
 
+  // --- New Pagination States ---
   const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 50; // Changed from 20 to 50 per page!
+  const rowsPerPage = 50; 
 
-  // Fetch from Python FastAPI Backend using vectorized NIFTY 500 endpoint
+  // Fetch Full 500 List from Hugging Face
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
       setLoadingScanner(true);
       try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ssb1000-algotrading.hf.space';
         const res = await fetch(`${backendUrl}/api/scan/nifty500`);
         if (!res.ok) throw new Error('API Error');
         const data = await res.json();
         
-        // Ensure we safely map the 500 stocks coming from Hugging Face
-        const stocksList = Array.isArray(data) ? data : (data.stocks || []);
+        // Use the 'stocks' array from backend
+        const stocksList = data.stocks || [];
         
-        if (stocksList && isMounted) {
+        if (isMounted) {
           const merged = stocksList.map(apiStock => {
             const meta = NIFTY_500.find(s => s.symbol === apiStock.symbol) || { name: apiStock.symbol, sector: 'Others' };
             return {
               ...apiStock,
               name: meta.name,
-              sector: meta.sector,
-              stochK: apiStock.stochK || null,
-              stochD: apiStock.stochD || null,
-              signal: apiStock.signal || 'NEUTRAL'
+              sector: meta.sector
             };
           });
           setStocksWithIndicators(merged);
@@ -235,8 +176,7 @@ export default function ScannerPage() {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(s =>
-        (s.symbol && s.symbol.toLowerCase().includes(term)) || 
-        (s.name && s.name.toLowerCase().includes(term))
+        (s.symbol || '').toLowerCase().includes(term) || (s.name || '').toLowerCase().includes(term)
       );
     }
     if (filterSignal !== 'ALL') {
@@ -253,8 +193,8 @@ export default function ScannerPage() {
     }
 
     result.sort((a, b) => {
-      let valA = a[sortBy] || '';
-      let valB = b[sortBy] || '';
+      let valA = a[sortBy] ?? '';
+      let valB = b[sortBy] ?? '';
       if (typeof valA === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
       if (valA < valB) return sortDir === 'asc' ? -1 : 1;
       if (valA > valB) return sortDir === 'asc' ? 1 : -1;
@@ -278,7 +218,6 @@ export default function ScannerPage() {
     return filteredStocks.slice(firstPageIndex, firstPageIndex + rowsPerPage);
   }, [currentPage, filteredStocks]);
 
-  // Safely upgraded signal counters to catch all types of signals!
   const signalCounts = useMemo(() => ({
     BUY: stocksWithIndicators.filter(s => (s.signal || '').toUpperCase().includes('BUY')).length,
     SELL: stocksWithIndicators.filter(s => (s.signal || '').toUpperCase().includes('SELL')).length,
@@ -294,185 +233,106 @@ export default function ScannerPage() {
   };
 
   const getRSIColor = (rsi) => {
-    if (rsi === null || rsi === undefined) return 'var(--c-text-muted)';
+    if (rsi == null) return 'var(--c-text-muted)';
     if (rsi < 30) return 'var(--c-profit)';
     if (rsi > 70) return 'var(--c-loss)';
     return 'var(--c-text-secondary)';
   };
 
-  const handleCloseModal = useCallback(() => setSelectedStock(null), []);
-
   return (
     <div className="animate-fadeIn">
       <div className="page-header">
-        <h2>Stock Scanner</h2>
-        <p>Screen NSE stocks using technical indicators — RSI, MACD, Stochastic RSI & EMA. Click any stock to view its live chart.</p>
+        <h2>Stock Scanner (NIFTY 500)</h2>
+        <p>Real-time indicators for all 500 constituents. Click any row for advanced TradingView charts.</p>
       </div>
 
-      <div style={{ marginBottom: '24px' }}>
-        <ScannerInput />
-      </div>
-
-      {/* Signal Summary Cards */}
-      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="stat-card" onClick={() => setFilterSignal(filterSignal === 'BUY' ? 'ALL' : 'BUY')} style={{ cursor: 'pointer', borderColor: filterSignal === 'BUY' ? 'rgba(16, 185, 129, 0.3)' : undefined }}>
+      {/* Summary Cards */}
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
+        <div className="stat-card" onClick={() => setFilterSignal('BUY')} style={{ cursor: 'pointer', borderColor: filterSignal === 'BUY' ? '#10b981' : 'transparent' }}>
           <div className="stat-label">Buy Signals</div>
           <div className="stat-value profit">{signalCounts.BUY}</div>
-          <div className="stat-change text-profit">RSI oversold / bullish crossover</div>
         </div>
-        <div className="stat-card" onClick={() => setFilterSignal(filterSignal === 'SELL' ? 'ALL' : 'SELL')} style={{ cursor: 'pointer', borderColor: filterSignal === 'SELL' ? 'rgba(239, 68, 68, 0.3)' : undefined }}>
+        <div className="stat-card" onClick={() => setFilterSignal('SELL')} style={{ cursor: 'pointer', borderColor: filterSignal === 'SELL' ? '#ef4444' : 'transparent' }}>
           <div className="stat-label">Sell Signals</div>
           <div className="stat-value loss">{signalCounts.SELL}</div>
-          <div className="stat-change text-loss">RSI overbought / bearish crossover</div>
         </div>
-        <div className="stat-card" onClick={() => setFilterSignal(filterSignal === 'NEUTRAL' ? 'ALL' : 'NEUTRAL')} style={{ cursor: 'pointer', borderColor: filterSignal === 'NEUTRAL' ? 'rgba(100, 116, 139, 0.3)' : undefined }}>
+        <div className="stat-card" onClick={() => setFilterSignal('NEUTRAL')} style={{ cursor: 'pointer', borderColor: filterSignal === 'NEUTRAL' ? '#64748b' : 'transparent' }}>
           <div className="stat-label">Neutral</div>
           <div className="stat-value">{signalCounts.NEUTRAL}</div>
-          <div className="stat-change text-muted">No clear signal</div>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filter Bar */}
       <div className="filter-bar">
         <div className="search-wrapper">
-          <span className="search-icon">🔍</span>
-          <input
-            className="search-input"
-            type="text"
-            placeholder="Search Nifty 500..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            id="scanner-search"
-          />
+          <input className="search-input" type="text" placeholder="Search Nifty 500..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} />
         </div>
-        <select
-          className="form-select"
-          value={filterSector}
-          onChange={(e) => { setFilterSector(e.target.value); setCurrentPage(1); }}
-          style={{ width: '180px', flex: 'none' }}
-          id="sector-filter"
-        >
+        <select className="form-select" value={filterSector} onChange={(e) => {setFilterSector(e.target.value); setCurrentPage(1);}}>
           {sectors.map(s => <option key={s} value={s}>{s === 'ALL' ? 'All Sectors' : s}</option>)}
-        </select>
-        <select
-          className="form-select"
-          value={filterSignal}
-          onChange={(e) => { setFilterSignal(e.target.value); setCurrentPage(1); }}
-          style={{ width: '150px', flex: 'none' }}
-          id="signal-filter"
-        >
-          <option value="ALL">All Signals</option>
-          <option value="BUY">Buy Only</option>
-          <option value="SELL">Sell Only</option>
-          <option value="NEUTRAL">Neutral Only</option>
         </select>
       </div>
 
-      {/* Scanner Table */}
+      {/* Table Container */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-          <table id="scanner-table">
+          <table>
             <thead>
               <tr>
-                <th onClick={() => handleSort('symbol')} style={{ cursor: 'pointer' }}>Symbol <SortIcon col="symbol" /></th>
-                <th>Sector</th>
-                <th onClick={() => handleSort('price')} style={{ cursor: 'pointer' }}>Price <SortIcon col="price" /></th>
-                <th onClick={() => handleSort('changePercent')} style={{ cursor: 'pointer' }}>Change <SortIcon col="changePercent" /></th>
-                <th style={{ width: '100px' }}>Sparkline</th>
-                <th onClick={() => handleSort('rsi')} style={{ cursor: 'pointer' }}>RSI (14) <SortIcon col="rsi" /></th>
-                <th>MACD</th>
-                <th onClick={() => handleSort('stochK')} style={{ cursor: 'pointer' }}>Stoch RSI <SortIcon col="stochK" /></th>
-                <th>EMA 20</th>
-                <th>EMA 50</th>
-                <th onClick={() => handleSort('signal')} style={{ cursor: 'pointer' }}>Signal <SortIcon col="signal" /></th>
+                <th onClick={() => handleSort('symbol')}>Symbol <SortIcon col="symbol" /></th>
+                <th onClick={() => handleSort('price')}>Price <SortIcon col="price" /></th>
+                <th onClick={() => handleSort('changePercent')}>Change <SortIcon col="changePercent" /></th>
+                <th>Sparkline</th>
+                <th onClick={() => handleSort('rsi')}>RSI (14) <SortIcon col="rsi" /></th>
+                <th>MACD Hist</th>
+                <th>EMA 20/50</th>
+                <th onClick={() => handleSort('signal')}>Signal <SortIcon col="signal" /></th>
               </tr>
             </thead>
             <tbody>
               {loadingScanner ? (
-                <tr>
-                  <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--sp-xl)' }}>
-                    <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%', margin: '0 auto var(--sp-sm)' }}></div>
-                    <div style={{ color: 'var(--c-text-muted)' }}>Broad Market Bulk Download in progress. Fetching NIFTY 500 variables... (takes ~15 sec)</div>
+                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>Analyzing Market Data...</td></tr>
+              ) : currentTableData.map(stock => (
+                <tr key={stock.symbol} onClick={() => setSelectedStock(stock.symbol)} className="scanner-row-clickable">
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{stock.symbol}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--c-text-muted)' }}>{stock.name}</div>
+                  </td>
+                  <td style={{ fontWeight: 600 }}>₹{(stock.price || 0).toLocaleString('en-IN')}</td>
+                  <td className={(stock.changePercent || 0) >= 0 ? 'text-profit' : 'text-loss'}>
+                    {(stock.changePercent || 0).toFixed(2)}%
+                  </td>
+                  <td><MiniChart symbol={stock.symbol} /></td>
+                  <td style={{ color: getRSIColor(stock.rsi), fontWeight: 600 }}>{stock.rsi ? stock.rsi.toFixed(1) : '—'}</td>
+                  <td style={{ color: (stock.macdHist || 0) >= 0 ? '#10b981' : '#ef4444' }}>{(stock.macdHist || 0).toFixed(2)}</td>
+                  <td style={{ fontSize: '11px' }}>
+                    <div>20: ₹{(stock.ema20 || 0).toFixed(0)}</div>
+                    <div style={{ color: 'var(--c-text-muted)' }}>50: ₹{(stock.ema50 || 0).toFixed(0)}</div>
+                  </td>
+                  <td>
+                    <span className={`badge ${(stock.signal || '').includes('BUY') ? 'badge-buy' : (stock.signal || '').includes('SELL') ? 'badge-sell' : 'badge-neutral'}`}>
+                      {stock.signal || 'NEUTRAL'}
+                    </span>
                   </td>
                 </tr>
-              ) : currentTableData.length > 0 ? currentTableData.map(stock => {
-                const isBuy = (stock.signal || '').toUpperCase().includes('BUY');
-                const isSell = (stock.signal || '').toUpperCase().includes('SELL');
-                const signalClass = isBuy ? 'badge-buy' : isSell ? 'badge-sell' : 'badge-neutral';
-                
-                return (
-                  <tr
-                    key={stock.symbol}
-                    onClick={() => setSelectedStock(stock.symbol)}
-                    className="scanner-row-clickable"
-                    title={`Click to view NSE:${stock.symbol} chart`}
-                  >
-                    <td>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--c-text-primary)' }}>{stock.symbol}</div>
-                        <div style={{ fontSize: '10px', color: 'var(--c-text-muted)' }}>{stock.name}</div>
-                      </div>
-                    </td>
-                    <td><span className="badge badge-neutral">{stock.sector}</span></td>
-                    <td style={{ fontWeight: 600 }}>₹{(stock.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td className={(stock.changePercent || 0) >= 0 ? 'text-profit' : 'text-loss'} style={{ fontWeight: 600 }}>
-                      {(stock.changePercent || 0) >= 0 ? '+' : ''}{(stock.changePercent || 0).toFixed(2)}%
-                    </td>
-                    <td>
-                      <div className="mini-chart-cell">
-                        <MiniChart symbol={stock.symbol} />
-                      </div>
-                    </td>
-                    <td style={{ color: getRSIColor(stock.rsi), fontWeight: 600 }}>
-                      {stock.rsi !== null && stock.rsi !== undefined ? stock.rsi.toFixed(1) : '—'}
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '11px' }}>
-                        <span style={{ color: (stock.macdHist || 0) >= 0 ? 'var(--c-profit)' : 'var(--c-loss)' }}>
-                          H: {(stock.macdHist || 0).toFixed(2)}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '11px' }}>
-                        <span>K: {stock.stochK !== null && stock.stochK !== undefined ? stock.stochK.toFixed(1) : '—'}</span>
-                        {' '}
-                        <span style={{ color: 'var(--c-text-muted)' }}>D: {stock.stochD !== null && stock.stochD !== undefined ? stock.stochD.toFixed(1) : '—'}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontSize: '12px' }}>₹{(stock.ema20 || 0).toFixed(0)}</td>
-                    <td style={{ fontSize: '12px' }}>₹{(stock.ema50 || 0).toFixed(0)}</td>
-                    <td>
-                      <span className={`badge ${signalClass}`}>
-                        {stock.signal || 'NEUTRAL'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                   <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--sp-xl)' }}>No matching stocks found in NIFTY 500.</td>
-                </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-        <div style={{ padding: 'var(--sp-sm) var(--sp-md)', borderTop: '1px solid var(--c-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--c-text-muted)' }}>
-            Showing {currentTableData.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} to {Math.min(currentPage * rowsPerPage, filteredStocks.length)} of {filteredStocks.length} matched stocks
+
+        {/* --- Pagination Controls --- */}
+        <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--c-bg-card)' }}>
+          <div style={{ fontSize: '12px', color: 'var(--c-text-muted)' }}>
+            Showing {filteredStocks.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} to {Math.min(currentPage * rowsPerPage, filteredStocks.length)} of {filteredStocks.length} stocks
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-             <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(c => c - 1)}>Prev</button>
-             <span style={{ fontSize: '13px', color: 'var(--c-text-primary)' }}>Page {currentPage} of {Math.max(1, Math.ceil(filteredStocks.length / rowsPerPage))}</span>
-             <button className="btn btn-secondary btn-sm" disabled={currentPage >= Math.ceil(filteredStocks.length / rowsPerPage)} onClick={() => setCurrentPage(c => c + 1)}>Next</button>
+            <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(c => c - 1)}>Prev</button>
+            <span style={{ fontSize: '13px' }}>Page {currentPage} of {Math.max(1, Math.ceil(filteredStocks.length / rowsPerPage))}</span>
+            <button className="btn btn-secondary btn-sm" disabled={currentPage >= Math.ceil(filteredStocks.length / rowsPerPage)} onClick={() => setCurrentPage(c => c + 1)}>Next</button>
           </div>
         </div>
       </div>
 
-      {/* Chart Modal */}
-      {selectedStock && (
-        <ChartModal symbol={selectedStock} onClose={handleCloseModal} />
-      )}
+      {selectedStock && <ChartModal symbol={selectedStock} onClose={() => setSelectedStock(null)} />}
     </div>
   );
 }
