@@ -35,6 +35,7 @@ export default function CustomScreenerPage() {
   const [sellConditions, setSellConditions] = useState([
     { id: Date.now() + 2, leftName: 'close', leftPeriod: '', operator: '<', rightType: 'number', rightName: '', rightPeriod: '', rightValue: '90' }
   ]);
+  const [greedyMode, setGreedyMode] = useState(true); // Default to on as per user preference
 
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -156,7 +157,8 @@ export default function CustomScreenerPage() {
       buy_allocation: parseFloat(buyAllocation),
       buy_conditions: formatConds(bConds),
       sell_enabled: sEn,
-      sell_conditions: formatConds(sConds)
+      sell_conditions: formatConds(sConds),
+      greedy_mode: greedyMode
     };
 
     try {
@@ -330,6 +332,27 @@ export default function CustomScreenerPage() {
           {renderConditionBuilder('BUY', buyEnabled, setBuyEnabled, buyConditions, 'WHEN (Buy Pipeline)', '16, 185, 129', 'var(--c-profit)')}
           {renderConditionBuilder('SELL', sellEnabled, setSellEnabled, sellConditions, 'WHEN (Sell Pipeline)', '239, 68, 68', 'var(--c-loss)')}
 
+          {/* Greedy Mode Toggle */}
+          <div style={{ padding: '20px', background: 'var(--c-bg-secondary)', borderRadius: 'var(--r-md)', border: '1px solid var(--c-border)', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--c-text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🚀 Priority-Based Greedy Capital Exhaustion
+                <span className="badge" style={{ background: 'var(--c-accent-bg)', color: 'var(--c-accent)', fontSize: '10px' }}>STRATEGY C</span>
+              </div>
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--c-text-muted)', marginTop: '4px' }}>
+                Priority: <b>MID-CAP > LARGE-CAP > SMALL-CAP</b> (Sorted by Relative Strength)
+              </div>
+            </div>
+            <label className="toggle-switch">
+              <input 
+                type="checkbox" 
+                checked={greedyMode} 
+                onChange={(e) => setGreedyMode(e.target.checked)} 
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
           {/* API Settings Module */}
           <div style={{ marginTop: '16px', padding: '16px', background: 'var(--c-bg-primary)', border: '1px dashed var(--c-border)', borderRadius: 'var(--r-md)' }}>
              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: 'var(--c-text-secondary)' }}>Broker Interface Authentication (Kite / Breeze)</h4>
@@ -370,6 +393,7 @@ export default function CustomScreenerPage() {
                 <thead>
                   <tr>
                     <th>Symbol</th>
+                    <th>Cap Group</th>
                     <th>Execution Pipeline</th>
                     <th>Latest Price</th>
                     {mode !== 'magic' && <th>Traded Qty</th>}
@@ -380,6 +404,11 @@ export default function CustomScreenerPage() {
                   {results.map((r, i) => (
                     <tr key={i}>
                       <td style={{ fontWeight: 600, color: 'var(--c-text-primary)' }}>{r.symbol}</td>
+                      <td>
+                         <span className="badge" style={{ background: 'var(--c-bg-tertiary)', border: '1px solid var(--c-border)' }}>
+                            {r.cap_group || 'N/A'}
+                         </span>
+                      </td>
                       <td>
                          <span className="badge" style={{ background: r.trade_action === 'BUY' ? 'var(--c-profit-bg)' : (r.trade_action === 'SELL' ? 'var(--c-loss-bg)' : 'var(--c-bg-tertiary)') }}>
                             {r.trade_action || 'SCAN'}

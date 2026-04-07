@@ -3,6 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import yfinance as yf
 import json
+import os
+
+# Load Market Cap Mapping
+MARKET_CAP_PATH = os.path.join(os.path.dirname(__file__), "market_caps.json")
+try:
+    with open(MARKET_CAP_PATH, "r") as f:
+        CAP_DATA = json.load(f)
+except Exception:
+    CAP_DATA = {"LARGE_CAPS": [], "MID_CAPS": []}
 
 app = FastAPI(title="Algo Trading Scanner API")
 
@@ -218,6 +227,7 @@ class DualStrategyRequest(BaseModel):
     
     sell_enabled: bool
     sell_conditions: List[ConditionParam]
+    greedy_mode: bool = False
 
 # Global state to prevent infinite looping of automated trades.
 # Stores strings like "BUY_RELIANCE" or "SELL_TCS"
@@ -348,47 +358,84 @@ async def execute_strategy(req: DualStrategyRequest):
         def __init__(self, c):
             self.conditions = c
             
-    def process_leg(action_type, check_universe, conditions, allocation_amt_limit=0):
+    def get_cap_priority(symbol: str) -> int:
+        if symbol in CAP_DATA.get("MID_CAPS", []): return 1 # Mid Cap = Priority 1
+        if symbol in CAP_DATA.get("LARGE_CAPS", []): return 2 # Large Cap = Priority 2
+        return 3 # Small Cap = Priority 3
+
+    def process_leg(action_type, check_universe, conditions, initial_allocation=0):
         if not conditions: return
         dummy_req = DummyReq(conditions)
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        # Step 1: Scan for signals (Parallel)
+        triggered_signals = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = {executor.submit(check_stock_custom, sym, dummy_req): sym for sym in check_universe}
             for future in concurrent.futures.as_completed(futures):
-                try:
-                    res = future.result()
-                    if res:
-                        symbol = res["symbol"]
-                        trade_key = f"{action_type}_{symbol}"
-                        
-                        if trade_key in EXECUTED_TRADES:
-                            continue
-                            
-                        # Mock Execution
-                        qty = int(allocation_amt_limit / max(1, res["price"])) if action_type == "BUY" else 10
-                        if qty > 0:
-                            EXECUTED_TRADES.add(trade_key)
-                            print(f"[{req.broker}] SUCCESS: Automated {action_type} order for {qty} shares of {symbol} at ₹{res['price']}.")
-                            
-                            matches.append({
-                                "symbol": symbol,
-                                "price": res["price"],
-                                "volume": res["volume"],
-                                "trade_status": "EXECUTED",
-                                "trade_action": action_type,
-                                "trade_qty": qty,
-                                "broker": req.broker
-                            })
-                except Exception as e:
-                    print(f"Error executing leg {action_type}: {e}")
-                    
+                res = future.result()
+                if res: triggered_signals.append(res)
+
+        if not triggered_signals: return
+
+        # Step 2: Priority Sorting (Option C: Cap Tier -> Relative Strength/Price)
+        # We use RSI or Price as a proxy for 'Relative Strength' if RSI isn't pre-calculated here.
+        # Sorting by Cap Priority ascending (1, 2, 3) and Price descending for momentum.
+        triggered_signals.sort(key=lambda x: (get_cap_priority(x["symbol"]), -x["price"]))
+
+        # Step 3: Sequential Execution (Greedy Allocation)
+        remaining_balance = initial_allocation
+        
+        for res in triggered_signals:
+            symbol = res["symbol"]
+            trade_key = f"{action_type}_{symbol}"
+            
+            if trade_key in EXECUTED_TRADES: continue
+                
+            # Quantity Calculation
+            if action_type == "BUY":
+                if req.greedy_mode:
+                    # Greedy: Use MAX possible with remaining funds
+                    qty = int(remaining_balance / max(1, res["price"]))
+                else:
+                    # Fixed Allocation Mode
+                    qty = int(initial_allocation / max(1, res["price"]))
+            else:
+                # Sell logic (fixed or portfolio balance)
+                qty = 10 
+
+            if qty > 0:
+                cost = qty * res["price"]
+                if action_type == "BUY" and cost > remaining_balance and req.greedy_mode:
+                    # In Greedy Mode, if we can't afford the calculated qty, we skip entirely (User Rule 2)
+                    print(f"[{req.broker}] SKIPPED: {symbol} (Insufficient Funds ₹{cost} > ₹{remaining_balance})")
+                    continue
+
+                EXECUTED_TRADES.add(trade_key)
+                print(f"[{req.broker}] SUCCESS: {action_type} {qty} shares of {symbol} at ₹{res['price']}.")
+                
+                if action_type == "BUY" and req.greedy_mode:
+                    remaining_balance -= cost
+                    print(f"[{req.broker}] BALANCE REMAINING: ₹{remaining_balance:.2f}")
+
+                matches.append({
+                    "symbol": symbol,
+                    "price": res["price"],
+                    "volume": res["volume"],
+                    "trade_status": "EXECUTED",
+                    "trade_action": action_type,
+                    "trade_qty": qty,
+                    "cap_group": "MID" if get_cap_priority(symbol) == 1 else "LARGE" if get_cap_priority(symbol) == 2 else "SMALL",
+                    "broker": req.broker
+                })
+
     try:
-        # Phase 1: SELL SCAN (Secure profits/cut losses first to free capital)
+        # Phase 1: SELL (Optional, greedy doesn't apply to sells usually)
         if req.sell_enabled:
             process_leg("SELL", MOCK_PORTFOLIO, req.sell_conditions, 0)
             
-        # Phase 2: BUY SCAN (Look for new entries in the open market)
+        # Phase 2: BUY (Greedy Priority Execution)
         if req.buy_enabled:
+            # If greedy_mode is on, we would ideally fetch real 'buy_allocation' from broker balance here.
             process_leg("BUY", NIFTY_MOCK_UNIVERSE, req.buy_conditions, req.buy_allocation)
             
     except Exception as general_err:
