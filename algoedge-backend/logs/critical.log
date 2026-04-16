@@ -1,0 +1,2 @@
+{"clientId":"YOUR_APP_ID","error":"Request failed with status code 404","level":"error","message":"Fyers Headless Auth Failure","timestamp":"2026-04-15T11:06:13.030Z"}
+{"level":"error","message":"CRITICAL: Fyers Token Pool Health is low. Success: 0/1"}

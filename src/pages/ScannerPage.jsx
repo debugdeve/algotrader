@@ -211,6 +211,9 @@ export default function ScannerPage() {
               sector: meta.sector,
               stochK: apiStock.stochK || null,
               stochD: apiStock.stochD || null,
+              ema200: apiStock.ema200 || null,
+              ich_span_a: apiStock.ich_span_a || null,
+              ich_span_b: apiStock.ich_span_b || null,
               signal: apiStock.signal || 'NEUTRAL'
             };
           });
@@ -305,8 +308,8 @@ export default function ScannerPage() {
   return (
     <div className="animate-fadeIn">
       <div className="page-header">
-        <h2>Stock Scanner</h2>
-        <p>Screen NSE stocks using technical indicators — RSI, MACD, Stochastic RSI & EMA. Click any stock to view its live chart.</p>
+        <h2>Stock Scanner (Pro)</h2>
+        <p>Screen NSE stocks using technical indicators — RSI, MACD, Stochastic RSI, EMA (20/50/200) & Ichimoku Cloud. Click any stock to view its live chart.</p>
       </div>
 
       <div style={{ marginBottom: '24px' }}>
@@ -379,11 +382,12 @@ export default function ScannerPage() {
                 <th onClick={() => handleSort('price')} style={{ cursor: 'pointer' }}>Price <SortIcon col="price" /></th>
                 <th onClick={() => handleSort('changePercent')} style={{ cursor: 'pointer' }}>Change <SortIcon col="changePercent" /></th>
                 <th style={{ width: '100px' }}>Sparkline</th>
-                <th onClick={() => handleSort('rsi')} style={{ cursor: 'pointer' }}>RSI (14) <SortIcon col="rsi" /></th>
+                <th onClick={() => handleSort('rsi')} style={{ cursor: 'pointer' }}>RSI <SortIcon col="rsi" /></th>
                 <th>MACD</th>
                 <th onClick={() => handleSort('stochK')} style={{ cursor: 'pointer' }}>Stoch RSI <SortIcon col="stochK" /></th>
-                <th>EMA 20</th>
-                <th>EMA 50</th>
+                <th>EMA 20/50</th>
+                <th>EMA 200</th>
+                <th>Ichimoku</th>
                 <th onClick={() => handleSort('signal')} style={{ cursor: 'pointer' }}>Signal <SortIcon col="signal" /></th>
               </tr>
             </thead>
@@ -440,8 +444,17 @@ export default function ScannerPage() {
                         <span style={{ color: 'var(--c-text-muted)' }}>D: {stock.stochD !== null && stock.stochD !== undefined ? stock.stochD.toFixed(1) : '—'}</span>
                       </div>
                     </td>
-                    <td style={{ fontSize: '12px' }}>₹{(stock.ema20 || 0).toFixed(0)}</td>
-                    <td style={{ fontSize: '12px' }}>₹{(stock.ema50 || 0).toFixed(0)}</td>
+                    <td style={{ fontSize: '11px' }}>
+                      <div style={{ color: 'var(--c-text-primary)' }}>₹{(stock.ema20 || 0).toFixed(0)}</div>
+                      <div style={{ color: 'var(--c-text-muted)', fontSize: '10px' }}>₹{(stock.ema50 || 0).toFixed(0)}</div>
+                    </td>
+                    <td style={{ fontSize: '12px', fontWeight: 600 }}>₹{(stock.ema200 || 0).toFixed(0)}</td>
+                    <td style={{ fontSize: '10px', whiteSpace: 'nowrap' }}>
+                      <div style={{ color: (stock.price > stock.ich_span_a && stock.price > stock.ich_span_b) ? 'var(--c-profit)' : 'var(--c-loss)' }}>
+                        Span A: {(stock.ich_span_a || 0).toFixed(1)}
+                      </div>
+                      <div style={{ color: 'var(--c-text-muted)' }}>Span B: {(stock.ich_span_b || 0).toFixed(1)}</div>
+                    </td>
                     <td>
                       <span className={`badge ${signalClass}`}>
                         {stock.signal || 'NEUTRAL'}

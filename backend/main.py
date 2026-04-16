@@ -52,6 +52,7 @@ def fetch_and_calculate(symbol: str):
         # EMA
         df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
         df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
+        df['EMA_200'] = df['Close'].ewm(span=200, adjust=False).mean()
         
         # RSI 14
         delta = df['Close'].diff()
@@ -59,6 +60,11 @@ def fetch_and_calculate(symbol: str):
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         df['RSI_14'] = 100 - (100 / (1 + rs))
+
+        # Stochastic RSI
+        min_rsi = df['RSI_14'].rolling(window=14).min()
+        max_rsi = df['RSI_14'].rolling(window=14).max()
+        df['STOCH_RSI'] = (df['RSI_14'] - min_rsi) / (max_rsi - min_rsi) * 100
         
         # MACD (12, 26, 9)
         ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
@@ -66,6 +72,21 @@ def fetch_and_calculate(symbol: str):
         df['MACD_12_26_9'] = ema_12 - ema_26
         df['MACDs_12_26_9'] = df['MACD_12_26_9'].ewm(span=9, adjust=False).mean()
         df['MACDh_12_26_9'] = df['MACD_12_26_9'] - df['MACDs_12_26_9']
+
+        # Ichimoku Cloud (9, 26, 52)
+        high_9 = df['High'].rolling(window=9).max()
+        low_9 = df['Low'].rolling(window=9).min()
+        tenkan = (high_9 + low_9) / 2
+
+        high_26 = df['High'].rolling(window=26).max()
+        low_26 = df['Low'].rolling(window=26).min()
+        kijun = (high_26 + low_26) / 2
+
+        df['ICH_SPAN_A'] = ((tenkan + kijun) / 2).shift(26)
+        
+        high_52 = df['High'].rolling(window=52).max()
+        low_52 = df['Low'].rolling(window=52).min()
+        df['ICH_SPAN_B'] = ((high_52 + low_52) / 2).shift(26)
 
         # Drop rows with NaN values
         df.dropna(inplace=True)
@@ -100,29 +121,52 @@ async def scan_nifty500():
         # 3. Vectorized Math (Computes 500 streams simultaneously)
         ema20 = close.ewm(span=20, adjust=False).mean()
         ema50 = close.ewm(span=50, adjust=False).mean()
+        ema200 = close.ewm(span=200, adjust=False).mean()
         
         delta = close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         rsi = 100 - (100 / (1 + rs))
+
+        min_rsi = rsi.rolling(window=14).min()
+        max_rsi = rsi.rolling(window=14).max()
+        stoch_rsi = (rsi - min_rsi) / (max_rsi - min_rsi) * 100
         
         ema12 = close.ewm(span=12, adjust=False).mean()
         ema26 = close.ewm(span=26, adjust=False).mean()
         macd = ema12 - ema26
         macd_signal = macd.ewm(span=9, adjust=False).mean()
         macd_hist = macd - macd_signal
+
+        # Ichimoku
+        high = df['High']
+        low = df['Low']
+        high9 = high.rolling(window=9).max()
+        low9 = low.rolling(window=9).min()
+        tenkan = (high9 + low9) / 2
+        high26 = high.rolling(window=26).max()
+        low26 = low.rolling(window=26).min()
+        kijun = (high26 + low26) / 2
+        span_a = ((tenkan + kijun) / 2).shift(26)
+        high52 = high.rolling(window=52).max()
+        low52 = low.rolling(window=52).min()
+        span_b = ((high52 + low52) / 2).shift(26)
         
         # 4. Extract Last Row
         last_close = close.iloc[-1]
         prev_close = close.iloc[-2]
         last_vol = volume.iloc[-1]
         last_rsi = rsi.iloc[-1]
+        last_stoch_rsi = stoch_rsi.iloc[-1]
         last_ema20 = ema20.iloc[-1]
         last_ema50 = ema50.iloc[-1]
+        last_ema200 = ema200.iloc[-1]
         last_macd = macd.iloc[-1]
         last_msig = macd_signal.iloc[-1]
         last_mhist = macd_hist.iloc[-1]
+        last_span_a = span_a.iloc[-1]
+        last_span_b = span_b.iloc[-1]
         
         results = []
         for symbol in symbols:
@@ -137,11 +181,15 @@ async def scan_nifty500():
                 change_pct = (change / pc) * 100 if pc else 0
                 
                 r = last_rsi.get(tk)
+                sr = last_stoch_rsi.get(tk)
                 e2 = last_ema20.get(tk)
                 e5 = last_ema50.get(tk)
+                e200 = last_ema200.get(tk)
                 m = last_macd.get(tk)
                 ms = last_msig.get(tk)
                 mh = last_mhist.get(tk)
+                sa = last_span_a.get(tk)
+                sb = last_span_b.get(tk)
                 
                 sig = "NEUTRAL"
                 if not pd.isna(r):
@@ -156,9 +204,13 @@ async def scan_nifty500():
                     "rsi": float(r) if not pd.isna(r) else None,
                     "ema20": float(e2) if not pd.isna(e2) else None,
                     "ema50": float(e5) if not pd.isna(e5) else None,
+                    "ema200": float(e200) if not pd.isna(e200) else None,
+                    "stochRsi": float(sr) if not pd.isna(sr) else None,
                     "macdLine": float(m) if not pd.isna(m) else None,
                     "macdSignal": float(ms) if not pd.isna(ms) else None,
                     "macdHist": float(mh) if not pd.isna(mh) else None,
+                    "spanA": float(sa) if not pd.isna(sa) else None,
+                    "spanB": float(sb) if not pd.isna(sb) else None,
                     "signal": sig,
                     "isLive": True
                 })
@@ -188,11 +240,15 @@ async def scan_stock(symbol: str):
         "symbol": symbol,
         "current_price": round(float(latest_data['Close']), 2),
         "rsi_14": round(float(latest_data['RSI_14']), 2),
+        "stoch_rsi": round(float(latest_data['STOCH_RSI']), 2) if 'STOCH_RSI' in latest_data else None,
         "macd": round(float(latest_data['MACD_12_26_9']), 2),
         "macd_signal": round(float(latest_data['MACDs_12_26_9']), 2),
         "macd_histogram": round(float(latest_data['MACDh_12_26_9']), 2),
         "ema_20": round(float(latest_data['EMA_20']), 2),
         "ema_50": round(float(latest_data['EMA_50']), 2),
+        "ema_200": round(float(latest_data['EMA_200']), 2) if 'EMA_200' in latest_data else None,
+        "ich_span_a": round(float(latest_data['ICH_SPAN_A']), 2) if 'ICH_SPAN_A' in latest_data else None,
+        "ich_span_b": round(float(latest_data['ICH_SPAN_B']), 2) if 'ICH_SPAN_B' in latest_data else None,
         "signal": "OVERBOUGHT" if latest_data['RSI_14'] > 70 else ("OVERSOLD" if latest_data['RSI_14'] < 30 else "NEUTRAL")
     }
     
@@ -278,6 +334,37 @@ def ensure_indicator_col(df, ind: IndicatorParam) -> str:
             ema12 = df['Close'].ewm(span=12, adjust=False).mean()
             ema26 = df['Close'].ewm(span=26, adjust=False).mean()
             df[col] = ema12 - ema26
+        return col
+    elif name == 'stoch_rsi':
+        col = 'STOCH_RSI'
+        if col not in df.columns:
+            # Re-calculate RSI if not present
+            if 'RSI_14' not in df.columns:
+                delta = df['Close'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                df['RSI_14'] = 100 - (100 / (1 + (gain / loss)))
+            min_rsi = df['RSI_14'].rolling(window=14).min()
+            max_rsi = df['RSI_14'].rolling(window=14).max()
+            df[col] = (df['RSI_14'] - min_rsi) / (max_rsi - min_rsi) * 100
+        return col
+    elif name == 'ich_span_a':
+        col = 'ICH_SPAN_A'
+        if col not in df.columns:
+            high_9 = df['High'].rolling(window=9).max()
+            low_9 = df['Low'].rolling(window=9).min()
+            tenkan = (high_9 + low_9) / 2
+            high_26 = df['High'].rolling(window=26).max()
+            low_26 = df['Low'].rolling(window=26).min()
+            kijun = (high_26 + low_26) / 2
+            df[col] = ((tenkan + kijun) / 2).shift(26)
+        return col
+    elif name == 'ich_span_b':
+        col = 'ICH_SPAN_B'
+        if col not in df.columns:
+            high_52 = df['High'].rolling(window=52).max()
+            low_52 = df['Low'].rolling(window=52).min()
+            df[col] = ((high_52 + low_52) / 2).shift(26)
         return col
     return 'Close'
 

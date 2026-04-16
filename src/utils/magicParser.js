@@ -21,41 +21,31 @@ export function parseMagicFilter(text) {
 
   // Rule 1: RSI Bounds
   if (t.includes('rsi oversold')) {
-    addCondition('rsi', '<', 'number', '30', 14);
+    addCondition('rsi_14', '<', 'number', '30');
   } else if (t.includes('rsi overbought')) {
-    addCondition('rsi', '>', 'number', '70', 14);
-  } else if (t.match(/rsi\s*>\s*(\d+)/)) {
-    const val = t.match(/rsi\s*>\s*(\d+)/)[1];
-    addCondition('rsi', '>', 'number', val, 14);
-  } else if (t.match(/rsi( less than|<)\s*(\d+)/)) {
-    const val = t.match(/rsi( less than|<)\s*(\d+)/)[2];
-    addCondition('rsi', '<', 'number', val, 14);
+    addCondition('rsi_14', '>', 'number', '70');
+  } else if (t.includes('extreme oversold') || t.includes('fast reversal') || t.includes('stoch rsi')) {
+    addCondition('stoch_rsi', '<', 'number', '20');
   }
 
   // Rule 2: MACD Crossovers
   if (t.includes('macd bullish') || t.includes('macd positive') || t.includes('macd crossover')) {
-    addCondition('macd', '>', 'number', '0');
-  } else if (t.includes('macd negative') || t.includes('macd bearish')) {
-    addCondition('macd', '<', 'number', '0');
+    addCondition('macd', '>', 'indicator', 'macd_signal');
   }
 
-  // Rule 3: Volume surges
+  // Rule 3: Moving Averages & Ichimoku
+  if (t.includes('golden cross')) {
+    addCondition('ema', '>', 'indicator', 'ema', 50, 200);
+  } else if (t.includes('ichimoku bullish') || t.includes('above cloud')) {
+    addCondition('close', '>', 'indicator', 'ich_span_a');
+    addCondition('close', '>', 'indicator', 'ich_span_b');
+  } else if (t.includes('above 200 ema') || t.includes('long term bullish')) {
+    addCondition('close', '>', 'indicator', 'ema', null, 200);
+  }
+
+  // Rule 4: Volume surges
   if (t.includes('rising volume') || t.includes('high volume')) {
     addCondition('volume', '>', 'number', '1000000');
-  }
-
-  // Rule 4: Price / Moving Averages
-  if (t.includes('golden cross')) {
-    addCondition('sma', 'crossover', 'indicator', 'sma', 50, 200);
-  } else if (t.includes('death cross')) {
-    addCondition('sma', 'crossunder', 'indicator', 'sma', 50, 200);
-  } else if (t.match(/price\s*(above|>)\s*(\d+)[ -]*(sma|ema)/)) {
-    const match = t.match(/price\s*(above|>)\s*(\d+)[ -]*(sma|ema)/);
-    const period = match[2];
-    const ind = match[3];
-    addCondition('close', '>', 'indicator', ind, null, period);
-  } else if (t.match(/stocks up by\s*(\d+)/)) {
-    addCondition('close', '>', 'indicator', 'open');
   }
 
   // Fallback if empty array

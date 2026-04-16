@@ -6,9 +6,12 @@ const INDICATORS = [
   { value: 'open', label: 'Open Price' },
   { value: 'volume', label: 'Volume' },
   { value: 'sma', label: 'Simple Moving Average (SMA)' },
-  { value: 'ema', label: 'Exponential Moving Average (EMA)' },
-  { value: 'rsi', label: 'RSI' },
-  { value: 'macd', label: 'MACD' },
+  { value: 'ema', label: 'EMA (20/50/200)' },
+  { value: 'rsi_14', label: 'RSI (14)' },
+  { value: 'macd', label: 'MACD (12,26,9)' },
+  { value: 'stoch_rsi', label: 'Stochastic RSI' },
+  { value: 'ich_span_a', label: 'Ichimoku Span A' },
+  { value: 'ich_span_b', label: 'Ichimoku Span B' },
 ];
 
 const OPERATORS = [
@@ -101,27 +104,39 @@ export default function CustomScreenerPage() {
       const data = await res.json();
 
       // 2. Map AI output to our Internal UI state
-      const mappedConditions = data.logic.map((l, idx) => ({
-        id: Date.now() + idx,
-        leftName: l.left.name.toLowerCase(),
-        leftPeriod: l.left.period ? String(l.left.period) : '',
-        operator: l.operator,
-        rightType: l.right ? 'indicator' : 'number',
-        rightName: l.right ? l.right.name.toLowerCase() : '',
-        rightPeriod: (l.right && l.right.period) ? String(l.right.period) : '',
-        rightValue: l.right_value !== undefined ? String(l.right_value) : ''
-      }));
+      // AlgoEdge Schema uses: filters: [{ indicator, operator, value }]
+      const mappedConditions = (data.filters || []).map((f, idx) => {
+        const isIndicatorValue = typeof f.value === 'string' && INDICATORS.some(i => i.value === f.value.toLowerCase());
+        
+        return {
+          id: Date.now() + idx,
+          leftName: f.indicator.toLowerCase(),
+          leftPeriod: f.indicator.includes('_') ? f.indicator.split('_')[1] : '',
+          operator: f.operator,
+          rightType: isIndicatorValue ? 'indicator' : 'number',
+          rightName: isIndicatorValue ? f.value.toLowerCase() : '',
+          rightPeriod: (isIndicatorValue && f.value.includes('_')) ? f.value.split('_')[1] : '',
+          rightValue: !isIndicatorValue ? String(f.value) : ''
+        };
+      });
 
-      setBuyConditions(mappedConditions);
-      setBuyEnabled(true);
-      setSellEnabled(false);
+      if (mappedConditions.length > 0) {
+        setBuyConditions(mappedConditions);
+        setBuyEnabled(true);
+        setSellEnabled(false);
+      }
+
       setAiFeedback({
-        summary: data.researchSummary,
-        tickers: data.recommendedTickers
+        summary: data.interpreted_description,
+        tickers: [], // We don't have recommended tickers in the new schema, but we could add them back if needed.
+        sector: data.sector,
+        timeframe: data.timeframe
       });
 
       // 3. Immediately launch the engine scan
-      await executeStrategyEngine(mappedConditions, [], true, false);
+      if (mappedConditions.length > 0) {
+        await executeStrategyEngine(mappedConditions, [], true, false);
+      }
 
     } catch (err) {
       setError(err.message);
@@ -306,16 +321,22 @@ export default function CustomScreenerPage() {
           {aiFeedback && (
             <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: 'var(--r-md)', animation: 'fadeInUp 0.4s ease-out' }}>
               <div style={{ fontSize: '13px', color: 'var(--c-cyan)', fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '16px' }}>📝</span> AI RESEARCH SUMMARY
+                <span style={{ fontSize: '16px' }}>📝</span> AI STRATEGY INTERPRETATION
               </div>
               <p style={{ fontSize: '14px', color: 'var(--c-text-primary)', lineHeight: '1.6', margin: '0 0 16px 0' }}>
                 {aiFeedback.summary}
               </p>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                 <span style={{ fontSize: '12px', color: 'var(--c-text-muted)' }}>Hot Tickers:</span>
-                 {aiFeedback.tickers.map(t => (
-                   <span key={t} className="badge" style={{ background: 'var(--c-bg-tertiary)', color: 'var(--c-text-primary)' }}>{t}</span>
-                 ))}
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                 {aiFeedback.sector && (
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                     <span style={{ fontSize: '12px', color: 'var(--c-text-muted)' }}>Sector:</span>
+                     <span className="badge" style={{ background: 'var(--c-bg-tertiary)', color: 'var(--c-cyan)' }}>{aiFeedback.sector}</span>
+                   </div>
+                 )}
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--c-text-muted)' }}>Timeframe:</span>
+                    <span className="badge" style={{ background: 'var(--c-bg-tertiary)', color: 'var(--c-text-primary)' }}>{aiFeedback.timeframe || '1d'}</span>
+                 </div>
               </div>
             </div>
           )}
