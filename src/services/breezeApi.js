@@ -1,10 +1,10 @@
 // ICICI Direct Breeze API Service Layer
 // Proxies all requests safely through our local Python Backend.
+import config from '../config';
 
 class BreezeApiService {
   constructor() {
-    const BASE_API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000/api';
-    this.BACKEND_URL = `${BASE_API_URL}/breeze`;
+    this.BACKEND_URL = `${config.API_BASE_URL}/breeze`;
   }
 
   async getLoginUrl(apiKey) {

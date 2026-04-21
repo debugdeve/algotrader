@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Target, Activity, Percent, ChevronRight } from 'lucide-react';
 import axios from 'axios';
+import config from '../../config';
 
 const OptionChainDashboard = ({ symbol = 'NIFTY' }) => {
     const [data, setData] = useState(null);
@@ -10,7 +11,7 @@ const OptionChainDashboard = ({ symbol = 'NIFTY' }) => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get(`http://localhost:8000/api/market/derivatives/${symbol}`);
+                const response = await axios.get(`${config.API_BASE_URL}/market/derivatives/${symbol}`);
                 setData(response.data);
             } catch (error) {
                 console.error("Error fetching derivatives data:", error);

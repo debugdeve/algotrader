@@ -1,8 +1,8 @@
 // Zerodha Kite Connect API Service Layer
 // Proxies all requests securely through our local Python FastAPI Backend.
+import config from '../config';
 
-const BASE_API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000/api';
-const BACKEND_URL = `${BASE_API_URL}/kite`;
+const BACKEND_URL = `${config.API_BASE_URL}/kite`;
 
 class KiteApiService {
   constructor() {

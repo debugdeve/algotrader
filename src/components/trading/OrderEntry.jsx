@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Zap, ShieldCheck, Info } from 'lucide-react';
 import axios from 'axios';
+import config from '../../config';
 
 const OrderEntry = ({ symbol = 'RELIANCE', currentPrice = 2950.45, onClose }) => {
     const [side, setSide] = useState('BUY');
@@ -15,7 +16,7 @@ const OrderEntry = ({ symbol = 'RELIANCE', currentPrice = 2950.45, onClose }) =>
         setLoading(true);
         setStatus(null);
         try {
-            const response = await axios.post('http://localhost:8000/api/broker/order', {
+            const response = await axios.post(`${config.API_BASE_URL}/broker/order`, {
                 broker: 'ZERODHA', // Default for demo
                 symbol,
                 qty: parseInt(qty),

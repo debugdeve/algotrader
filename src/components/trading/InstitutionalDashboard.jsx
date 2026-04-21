@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Users, Globe } from 'lucide-react';
 import axios from 'axios';
+import config from '../../config';
 
 const InstitutionalDashboard = () => {
     const [data, setData] = useState(null);
@@ -10,7 +11,7 @@ const InstitutionalDashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/market/fii-dii');
+                const response = await axios.get(`${config.API_BASE_URL}/market/fii-dii`);
                 setData(response.data);
             } catch (error) {
                 console.error("Error fetching FII/DII data:", error);
