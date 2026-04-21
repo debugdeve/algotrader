@@ -14,7 +14,6 @@ import {
 import { PORTFOLIO_POSITIONS, SECTOR_ALLOCATION } from '../data/mockData';
 import kiteApi from '../services/kiteApi';
 import breezeApi from '../services/breezeApi';
-import InstitutionalDashboard from '../components/trading/InstitutionalDashboard';
 import OptionChainDashboard from '../components/trading/OptionChainDashboard';
 import OrderEntry from '../components/trading/OrderEntry';
 import { AnimatePresence } from 'framer-motion';
@@ -99,8 +98,8 @@ function MarketOverview() {
             { s: 'NSE:NIFTY', d: 'Nifty 50' },
             { s: 'BSE:SENSEX', d: 'Sensex' },
             { s: 'NSE:BANKNIFTY', d: 'Bank Nifty' },
-            { s: 'NSE:CNXFINANCE', d: 'Nifty Financial' },
-            { s: 'NSE:CNXIT', d: 'Nifty IT' },
+            { s: 'NSE:FINNIFTY', d: 'Nifty Financial' },
+            { s: 'NSE:NIFTYIT', d: 'Nifty IT' },
           ],
           originalTitle: 'Indices',
         },
@@ -366,9 +365,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Institutional & Derivatives Cockpit Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <InstitutionalDashboard />
+      {/* Derivatives Cockpit Section */}
+      <div className="grid grid-cols-1 gap-6 mb-8">
         <OptionChainDashboard symbol="NIFTY" />
       </div>
 
