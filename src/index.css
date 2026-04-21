@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap');
+
 :root {
   --sidebar-width: 280px;
   --sidebar-collapsed: 84px;
@@ -62,7 +64,7 @@
   box-sizing: border-box;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap');
+
 
 body {
   font-family: 'Manrope', system-ui, sans-serif;
