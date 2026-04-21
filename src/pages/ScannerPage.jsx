@@ -368,7 +368,7 @@ export default function ScannerPage() {
                 <tr>
                    <td colSpan="12" style={{ textAlign: 'center', padding: 'var(--sp-xl)' }}>No matching stocks found in NIFTY 500.</td>
                 </tr>
-              )
+              )}
             </tbody>
           </table>
         </div>
