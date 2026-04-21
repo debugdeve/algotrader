@@ -95,7 +95,7 @@ function MarketOverview() {
         {
           title: 'Indices',
           symbols: [
-            { s: 'NSE:NIFTY', d: 'Nifty 50' },
+            { s: 'NSE:NIFTY50', d: 'Nifty 50' },
             { s: 'BSE:SENSEX', d: 'Sensex' },
             { s: 'NSE:BANKNIFTY', d: 'Bank Nifty' },
             { s: 'NSE:FINNIFTY', d: 'Nifty Financial' },

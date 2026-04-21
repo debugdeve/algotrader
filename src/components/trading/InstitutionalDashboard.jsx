@@ -27,16 +27,15 @@ const InstitutionalDashboard = () => {
     const isDiiPositive = data?.dii_net > 0;
 
     return (
-        <div className="bg-[#050505] border border-zinc-800 rounded-3xl p-6 shadow-2xl">
+        <div className="w-full">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Users className="text-indigo-500" />
-                        Institutional Flow
+                    <h2 style={{ fontSize: 'var(--headline-sm)', fontWeight: 800, color: 'white', letterSpacing: '-0.01em' }}>
+                        Institutional Capital
                     </h2>
-                    <p className="text-zinc-400 text-sm mt-1">Daily Net Buy/Sell (Cr)</p>
+                    <p style={{ fontSize: 'var(--body-sm)', opacity: 0.5, marginTop: '4px' }}>Net Market Participation (Cr)</p>
                 </div>
-                <div className="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-xs text-zinc-500">
+                <div className="vault-insight-chip">
                     {data?.date}
                 </div>
             </div>
@@ -44,8 +43,9 @@ const InstitutionalDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* FII Card */}
                 <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-5 relative overflow-hidden"
+                    whileHover={{ scale: 1.01 }}
+                    style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)' }}
+                    className="rounded-xl p-6 relative overflow-hidden"
                 >
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -56,7 +56,7 @@ const InstitutionalDashboard = () => {
                                 FII / FPI
                             </span>
                         </div>
-                        <div className="text-3xl font-black text-white">
+                        <div style={{ fontSize: 'var(--display-xs)', fontWeight: 900, color: 'white', letterSpacing: '-0.03em' }}>
                             {isFiiPositive ? '+' : ''}{data?.fii_net.toLocaleString()}
                         </div>
                         <div className={`flex items-center gap-1 mt-2 text-sm ${isFiiPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -70,8 +70,9 @@ const InstitutionalDashboard = () => {
 
                 {/* DII Card */}
                 <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-5 relative overflow-hidden"
+                    whileHover={{ scale: 1.01 }}
+                    style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)' }}
+                    className="rounded-xl p-6 relative overflow-hidden"
                 >
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -82,7 +83,7 @@ const InstitutionalDashboard = () => {
                                 DII
                             </span>
                         </div>
-                        <div className="text-3xl font-black text-white">
+                        <div style={{ fontSize: 'var(--display-xs)', fontWeight: 900, color: 'white', letterSpacing: '-0.03em' }}>
                             {isDiiPositive ? '+' : ''}{data?.dii_net.toLocaleString()}
                         </div>
                         <div className={`flex items-center gap-1 mt-2 text-sm ${isDiiPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
