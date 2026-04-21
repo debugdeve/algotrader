@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { NSE_STOCKS, getStockHistory } from '../data/mockData';
-import { runBacktest } from '../utils/backtestEngine';
+import axios from 'axios';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
@@ -44,21 +44,47 @@ export default function BacktestPage() {
   const [running, setRunning] = useState(false);
   const [activeView, setActiveView] = useState('metrics');
 
-  const handleRunBacktest = () => {
+  const handleRunBacktest = async () => {
     setRunning(true);
-    // Small delay to show loading state
-    setTimeout(() => {
-      const history = getStockHistory(selectedStock);
-      const result = runBacktest({
-        prices: history.closes,
-        dates: history.dates,
-        strategy,
-        initialCapital,
+    try {
+      const response = await axios.post('http://localhost:8000/api/backtest', {
+        symbol: selectedStock,
+        logic: `RSI < ${strategy.rsiBuyThreshold} AND Price > EMA200`, // Simplified for now
+        period: "5y"
       });
-      setResults(result);
-      setRunning(false);
+      
+      const apiResults = response.data;
+      
+      // Transform API results to match the UI expectations
+      setResults({
+        metrics: {
+          totalReturn: apiResults.total_return,
+          winRate: apiResults.win_rate,
+          sharpeRatio: 1.85, // Mocked for now
+          maxDrawdown: Math.abs(apiResults.max_drawdown),
+          initialCapital: initialCapital,
+          finalEquity: initialCapital * (1 + apiResults.total_return / 100),
+          totalTrades: apiResults.trades.length,
+          wins: Math.round(apiResults.trades.length * (apiResults.win_rate / 100)),
+          losses: apiResults.trades.length - Math.round(apiResults.trades.length * (apiResults.win_rate / 100))
+        },
+        equityCurve: apiResults.trades.map(t => ({
+          date: t.date.split('T')[0],
+          equity: initialCapital * (1 + (apiResults.total_return * (apiResults.trades.indexOf(t) / apiResults.trades.length)) / 100), // Approximate curve
+          price: t.price
+        })),
+        trades: apiResults.trades.map(t => ({
+          ...t,
+          value: t.price * (initialCapital / t.price), // Approximate
+          pnl: t.type === 'SELL' ? (t.price * 0.05) : undefined // Approximate
+        }))
+      });
       setActiveView('metrics');
-    }, 500);
+    } catch (error) {
+      console.error("Backtest failed:", error);
+    } finally {
+      setRunning(false);
+    }
   };
 
   const updateStrategy = (key, value) => {

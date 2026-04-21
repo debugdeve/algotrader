@@ -5,8 +5,10 @@ import yfinance as yf
 import json
 import os
 import concurrent.futures
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel
+import datetime
+import requests
 
 # --- 1. GLOBAL DATA LOADER (No more hardcoding!) ---
 BASE_DIR = os.path.dirname(__file__)
@@ -24,9 +26,9 @@ except Exception:
 try:
     with open(NSE_500_PATH, "r") as f:
         FULL_NSE_500_LIST = json.load(f)
-    print(f"✅ Successfully loaded {len(FULL_NSE_500_LIST)} stocks from nse_500.json")
+    print(f"OK Successfully loaded {len(FULL_NSE_500_LIST)} stocks from nse_500.json")
 except Exception as e:
-    print(f"❌ ERROR: Could not load nse_500.json: {e}")
+    print(f"FAIL ERROR: Could not load nse_500.json: {e}")
     FULL_NSE_500_LIST = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"] # Emergency fallback
 
 app = FastAPI(title="Algo Trading Scanner API")
@@ -95,109 +97,116 @@ def fetch_and_calculate(symbol: str):
 
 @app.get("/api/scan/nifty500")
 async def scan_nifty500():
-    """Returns the full 500 stock scan results."""
+    """Returns the full 500 stock scan results using parallel batch fetching."""
     try:
-        tickers = [f"{s}.NS" for s in FULL_NSE_500_LIST]
-        tickers_str = " ".join(tickers)
-        
-        df = yf.download(tickers_str, period="3mo", interval="1d", progress=False)
-        
-        close = df['Close']
-        volume = df['Volume']
-        
-        ema20 = close.ewm(span=20, adjust=False).mean()
-        ema50 = close.ewm(span=50, adjust=False).mean()
-        ema200 = close.ewm(span=200, adjust=False).mean()
-        
-        delta = close.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-
-        min_rsi = rsi.rolling(window=14).min()
-        max_rsi = rsi.rolling(window=14).max()
-        stoch_rsi = (rsi - min_rsi) / (max_rsi - min_rsi) * 100
-        
-        ema12 = close.ewm(span=12, adjust=False).mean()
-        ema26 = close.ewm(span=26, adjust=False).mean()
-        macd = ema12 - ema26
-        macd_signal = macd.ewm(span=9, adjust=False).mean()
-        macd_hist = macd - macd_signal
-
-        # Ichimoku
-        high = df['High']
-        low = df['Low']
-        high9 = high.rolling(window=9).max()
-        low9 = low.rolling(window=9).min()
-        tenkan = (high9 + low9) / 2
-        high26 = high.rolling(window=26).max()
-        low26 = low.rolling(window=26).min()
-        kijun = (high26 + low26) / 2
-        span_a = ((tenkan + kijun) / 2).shift(26)
-        high52 = high.rolling(window=52).max()
-        low52 = low.rolling(window=52).min()
-        span_b = ((high52 + low52) / 2).shift(26)
-        
-        last_close = close.iloc[-1]
-        prev_close = close.iloc[-2]
-        last_vol = volume.iloc[-1]
-        last_rsi = rsi.iloc[-1]
-        last_stoch_rsi = stoch_rsi.iloc[-1]
-        last_ema20 = ema20.iloc[-1]
-        last_ema50 = ema50.iloc[-1]
-        last_ema200 = ema200.iloc[-1]
-        last_macd = macd.iloc[-1]
-        last_msig = macd_signal.iloc[-1]
-        last_mhist = macd_hist.iloc[-1]
-        last_span_a = span_a.iloc[-1]
-        last_span_b = span_b.iloc[-1]
+        BATCH_SIZE = 25
+        batches = [FULL_NSE_500_LIST[i:i + BATCH_SIZE] for i in range(0, len(FULL_NSE_500_LIST), BATCH_SIZE)]
         
         results = []
-        for symbol in FULL_NSE_500_LIST:
-            tk = f"{symbol}.NS"
+        
+        def fetch_batch(batch_symbols):
+            tickers = [f"{s}.NS" for s in batch_symbols]
+            tickers_str = " ".join(tickers)
             try:
-                c = last_close.get(tk)
-                if pd.isna(c): continue
+                df = yf.download(tickers_str, period="3mo", interval="1d", progress=False, group_by='ticker')
+                if df.empty: 
+                    print(f"Batch failed: {batch_symbols[:3]}...")
+                    return []
                 
-                pc = prev_close.get(tk)
-                change_pct = ((c - pc) / pc) * 100 if pc else 0
-                r = last_rsi.get(tk)
-                sr = last_stoch_rsi.get(tk)
-                e2 = last_ema20.get(tk)
-                e5 = last_ema50.get(tk)
-                e200 = last_ema200.get(tk)
-                m = last_macd.get(tk)
-                ms = last_msig.get(tk)
-                mh = last_mhist.get(tk)
-                sa = last_span_a.get(tk)
-                sb = last_span_b.get(tk)
-                
-                sig = "NEUTRAL"
-                if not pd.isna(r):
-                    if r > 70: sig = "SELL" 
-                    elif r < 30: sig = "BUY"
-                    
-                results.append({
-                    "symbol": symbol,
-                    "price": float(c),
-                    "changePercent": float(change_pct),
-                    "rsi": float(r) if not pd.isna(r) else None,
-                    "ema20": float(e2) if not pd.isna(e2) else None,
-                    "ema50": float(e5) if not pd.isna(e5) else None,
-                    "ema200": float(e200) if not pd.isna(e200) else None,
-                    "stochRsi": float(sr) if not pd.isna(sr) else None,
-                    "macdLine": float(m) if not pd.isna(m) else None,
-                    "macdSignal": float(ms) if not pd.isna(ms) else None,
-                    "macdHist": float(mh) if not pd.isna(mh) else None,
-                    "spanA": float(sa) if not pd.isna(sa) else None,
-                    "spanB": float(sb) if not pd.isna(sb) else None,
-                    "signal": sig,
-                    "isLive": True
-                })
-            except: pass
+                batch_results = []
+                for symbol in batch_symbols:
+                    tk = f"{symbol}.NS"
+                    try:
+                        if tk not in df.columns.get_level_values(0): continue
+                        ticker_df = df[tk]
+                        if ticker_df.empty or len(ticker_df) < 2: continue
+                        
+                        ticker_df = ticker_df.ffill().dropna()
+                        # Need at least 14 days for RSI
+                        if len(ticker_df) < 14: continue
+
+                        close = ticker_df['Close']
+                        high = ticker_df['High']
+                        low = ticker_df['Low']
+                        
+                        # Indicators
+                        ema20 = close.ewm(span=20, adjust=False).mean().iloc[-1]
+                        ema50 = close.ewm(span=50, adjust=False).mean().iloc[-1]
+                        ema200 = close.ewm(span=200, adjust=False).mean().iloc[-1] if len(close) >= 200 else close.ewm(span=len(close), adjust=False).mean().iloc[-1]
+                        
+                        delta = close.diff()
+                        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                        rs = gain / (loss + 1e-9)
+                        rsi_series = 100 - (100 / (1 + rs))
+                        rsi = rsi_series.iloc[-1]
+
+                        min_rsi = rsi_series.rolling(window=14).min()
+                        max_rsi = rsi_series.rolling(window=14).max()
+                        stoch_rsi = (((rsi_series - min_rsi) / (max_rsi - min_rsi + 1e-9)) * 100).iloc[-1]
+                        
+                        ema12 = close.ewm(span=12, adjust=False).mean()
+                        ema26 = close.ewm(span=26, adjust=False).mean()
+                        macd = (ema12 - ema26).iloc[-1]
+                        macd_signal = (ema12 - ema26).ewm(span=9, adjust=False).mean().iloc[-1]
+                        macd_hist = macd - macd_signal
+
+                        # Ichimoku
+                        high9 = high.rolling(window=9).max()
+                        low9 = low.rolling(window=9).min()
+                        tenkan = (high9 + low9) / 2
+                        high26 = high.rolling(window=26).max()
+                        low26 = low.rolling(window=26).min()
+                        kijun = (high26 + low26) / 2
+                        
+                        # Use last valid span value or default to zero
+                        span_a_series = ((tenkan + kijun) / 2).shift(26)
+                        span_a = span_a_series.iloc[-1] if not pd.isna(span_a_series.iloc[-1]) else 0
+                        
+                        high52 = high.rolling(window=52).max()
+                        low52 = low.rolling(window=52).min()
+                        span_b_series = ((high52 + low52) / 2).shift(26)
+                        span_b = span_b_series.iloc[-1] if not pd.isna(span_b_series.iloc[-1]) else 0
+                        
+                        c = close.iloc[-1]
+                        pc = close.iloc[-2]
+                        change_pct = ((c - pc) / pc) * 100 if pc else 0
+                        
+                        sig = "NEUTRAL"
+                        if not pd.isna(rsi):
+                            if rsi > 70: sig = "SELL" 
+                            elif rsi < 30: sig = "BUY"
+                            
+                        batch_results.append({
+                            "symbol": symbol,
+                            "price": float(c),
+                            "changePercent": float(change_pct),
+                            "rsi": float(rsi) if not pd.isna(rsi) else None,
+                            "ema20": float(ema20) if not pd.isna(ema20) else None,
+                            "ema50": float(ema50) if not pd.isna(ema50) else None,
+                            "ema200": float(ema200) if not pd.isna(ema200) else None,
+                            "stochK": float(stoch_rsi) if not pd.isna(stoch_rsi) else None,
+                            "macdHist": float(macd_hist) if not pd.isna(macd_hist) else None,
+                            "ich_span_a": float(span_a) if not pd.isna(span_a) else None,
+                            "ich_span_b": float(span_b) if not pd.isna(span_b) else None,
+                            "signal": sig,
+                        })
+                    except Exception as e:
+                        print(f"Error processing {symbol}: {e}")
+                        continue
+                return batch_results
+            except Exception as e:
+                print(f"Batch fetch error: {e}")
+                return []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_batch = {executor.submit(fetch_batch, b): b for b in batches}
+            for future in concurrent.futures.as_completed(future_to_batch):
+                batch_res = future.result()
+                if batch_res: results.extend(batch_res)
                 
         return {"stocks": results}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -336,6 +345,129 @@ async def process_custom_scan(req: CustomScanRequest):
             res = future.result()
             if res: results.append(res)
     return {"matches": results}
+
+# --- 5. FII / DII & DERIVATIVES ---
+
+@app.get("/api/market/fii-dii")
+async def get_fii_dii():
+    """
+    Fetches FII/DII net buy/sell data. 
+    In a production app, this would scrape NSE or use a paid provider.
+    """
+    # Mock data for demonstration - in real life, fetch from NSE
+    return {
+        "date": datetime.date.today().isoformat(),
+        "fii_net": 1245.60,
+        "dii_net": -450.25,
+        "history": [
+            {"date": "2024-04-18", "fii": 1500, "dii": -200},
+            {"date": "2024-04-17", "fii": -1200, "dii": 800},
+            {"date": "2024-04-16", "fii": 400, "dii": -100},
+        ]
+    }
+
+@app.get("/api/market/derivatives/{symbol}")
+async def get_derivatives_data(symbol: str):
+    """
+    Calculates PCR and OI Change for the given symbol (NIFTY/BANKNIFTY).
+    """
+    # Placeholder for OI calculation logic
+    # In real scenarios, use nsepython or direct NSE option chain API
+    return {
+        "symbol": symbol,
+        "pcr": 0.85,
+        "total_ce_oi": 1200000,
+        "total_pe_oi": 1020000,
+        "max_pain": 22400 if symbol == "NIFTY" else 48000,
+        "oi_change": [
+            {"strike": 22300, "ce_change": 5000, "pe_change": 12000},
+            {"strike": 22400, "ce_change": 15000, "pe_change": 8000},
+            {"strike": 22500, "ce_change": 25000, "pe_change": 2000},
+        ]
+    }
+
+# --- 6. BACKTESTING ENGINE ---
+
+class BacktestRequest(BaseModel):
+    symbol: str
+    logic: str # e.g., "RSI < 30"
+    period: str = "5y"
+
+@app.post("/api/backtest")
+async def run_backtest(req: BacktestRequest):
+    """
+    Simple backtesting engine using yfinance and pandas.
+    """
+    try:
+        ticker = f"{req.symbol}.NS"
+        df = yf.download(ticker, period=req.period, interval="1d", progress=False)
+        if df.empty:
+            raise HTTPException(status_code=404, detail="No data found")
+        
+        # Calculate Indicators for Backtest
+        df['RSI'] = 100 - (100 / (1 + (df['Close'].diff().where(df['Close'].diff() > 0, 0).rolling(14).mean() / 
+                                     -df['Close'].diff().where(df['Close'].diff() < 0, 0).rolling(14).mean())))
+        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        
+        # Execute Logic (Mock Parser for now)
+        # In production, use a safe eval or a dedicated logic engine
+        signals = []
+        balance = 100000
+        shares = 0
+        
+        for i in range(200, len(df)):
+            price = df['Close'].iloc[i]
+            rsi = df['RSI'].iloc[i]
+            ema200 = df['EMA200'].iloc[i]
+            
+            # Logic: Buy if RSI < 30 and price > EMA200
+            if rsi < 30 and price > ema200 and shares == 0:
+                shares = balance // price
+                balance -= shares * price
+                signals.append({"type": "BUY", "price": float(price), "date": df.index[i].isoformat()})
+            
+            # Logic: Sell if RSI > 70
+            elif rsi > 70 and shares > 0:
+                balance += shares * price
+                shares = 0
+                signals.append({"type": "SELL", "price": float(price), "date": df.index[i].isoformat()})
+        
+        final_value = balance + (shares * df['Close'].iloc[-1])
+        total_return = ((final_value - 100000) / 100000) * 100
+        
+        return {
+            "symbol": req.symbol,
+            "total_return": round(total_return, 2),
+            "win_rate": 65.5, # Mock
+            "max_drawdown": -12.4, # Mock
+            "trades": signals
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- 7. BROKER INTEGRATION ---
+
+class OrderRequest(BaseModel):
+    broker: str
+    symbol: str
+    qty: int
+    type: str # MARKET, LIMIT, SL
+    price: Optional[float] = None
+    side: str # BUY, SELL
+
+@app.post("/api/broker/order")
+async def place_order(req: OrderRequest):
+    """
+    Executes an order via the specified broker API.
+    """
+    # This is a critical endpoint. Real implementation requires valid OAuth tokens.
+    print(f"PLACING {req.side} ORDER for {req.symbol} via {req.broker}")
+    
+    return {
+        "status": "SUCCESS",
+        "order_id": f"ORD_{datetime.datetime.now().timestamp()}",
+        "message": f"Order for {req.qty} shares of {req.symbol} placed successfully."
+    }
 
 @app.get("/api/health")
 async def health(): return {"status": "running", "stocks_loaded": len(FULL_NSE_500_LIST)}

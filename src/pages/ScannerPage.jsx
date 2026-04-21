@@ -152,7 +152,6 @@ export default function ScannerPage() {
             return {
               ...apiStock,
               name: meta.name,
-<<<<<<< HEAD
               sector: meta.sector,
               stochK: apiStock.stochK || null,
               stochD: apiStock.stochD || null,
@@ -160,9 +159,6 @@ export default function ScannerPage() {
               ich_span_a: apiStock.ich_span_a || null,
               ich_span_b: apiStock.ich_span_b || null,
               signal: apiStock.signal || 'NEUTRAL'
-=======
-              sector: meta.sector
->>>>>>> ebb6c0c10e97a230ff2938d40fab25a6419e2548
             };
           });
           setStocksWithIndicators(merged);
@@ -252,13 +248,8 @@ export default function ScannerPage() {
   return (
     <div className="animate-fadeIn">
       <div className="page-header">
-<<<<<<< HEAD
-        <h2>Stock Scanner (Pro)</h2>
-        <p>Screen NSE stocks using technical indicators — RSI, MACD, Stochastic RSI, EMA (20/50/200) & Ichimoku Cloud. Click any stock to view its live chart.</p>
-=======
         <h2>Stock Scanner (NIFTY 500)</h2>
-        <p>Real-time indicators for all 500 constituents. Click any row for advanced TradingView charts.</p>
->>>>>>> ebb6c0c10e97a230ff2938d40fab25a6419e2548
+        <p>Screen NSE stocks using technical indicators — RSI, MACD, Stochastic RSI, EMA (20/50/200) & Ichimoku Cloud. Click any stock to view its live chart.</p>
       </div>
 
       {/* Summary Cards */}
@@ -293,7 +284,6 @@ export default function ScannerPage() {
           <table>
             <thead>
               <tr>
-<<<<<<< HEAD
                 <th onClick={() => handleSort('symbol')} style={{ cursor: 'pointer' }}>Symbol <SortIcon col="symbol" /></th>
                 <th>Sector</th>
                 <th onClick={() => handleSort('price')} style={{ cursor: 'pointer' }}>Price <SortIcon col="price" /></th>
@@ -306,45 +296,11 @@ export default function ScannerPage() {
                 <th>EMA 200</th>
                 <th>Ichimoku</th>
                 <th onClick={() => handleSort('signal')} style={{ cursor: 'pointer' }}>Signal <SortIcon col="signal" /></th>
-=======
-                <th onClick={() => handleSort('symbol')}>Symbol <SortIcon col="symbol" /></th>
-                <th onClick={() => handleSort('price')}>Price <SortIcon col="price" /></th>
-                <th onClick={() => handleSort('changePercent')}>Change <SortIcon col="changePercent" /></th>
-                <th>Sparkline</th>
-                <th onClick={() => handleSort('rsi')}>RSI (14) <SortIcon col="rsi" /></th>
-                <th>MACD Hist</th>
-                <th>EMA 20/50</th>
-                <th onClick={() => handleSort('signal')}>Signal <SortIcon col="signal" /></th>
->>>>>>> ebb6c0c10e97a230ff2938d40fab25a6419e2548
               </tr>
             </thead>
             <tbody>
               {loadingScanner ? (
-                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>Analyzing Market Data...</td></tr>
-              ) : currentTableData.map(stock => (
-                <tr key={stock.symbol} onClick={() => setSelectedStock(stock.symbol)} className="scanner-row-clickable">
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{stock.symbol}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--c-text-muted)' }}>{stock.name}</div>
-                  </td>
-                  <td style={{ fontWeight: 600 }}>₹{(stock.price || 0).toLocaleString('en-IN')}</td>
-                  <td className={(stock.changePercent || 0) >= 0 ? 'text-profit' : 'text-loss'}>
-                    {(stock.changePercent || 0).toFixed(2)}%
-                  </td>
-                  <td><MiniChart symbol={stock.symbol} /></td>
-                  <td style={{ color: getRSIColor(stock.rsi), fontWeight: 600 }}>{stock.rsi ? stock.rsi.toFixed(1) : '—'}</td>
-                  <td style={{ color: (stock.macdHist || 0) >= 0 ? '#10b981' : '#ef4444' }}>{(stock.macdHist || 0).toFixed(2)}</td>
-                  <td style={{ fontSize: '11px' }}>
-                    <div>20: ₹{(stock.ema20 || 0).toFixed(0)}</div>
-                    <div style={{ color: 'var(--c-text-muted)' }}>50: ₹{(stock.ema50 || 0).toFixed(0)}</div>
-                  </td>
-                  <td>
-                    <span className={`badge ${(stock.signal || '').includes('BUY') ? 'badge-buy' : (stock.signal || '').includes('SELL') ? 'badge-sell' : 'badge-neutral'}`}>
-                      {stock.signal || 'NEUTRAL'}
-                    </span>
-                  </td>
-                </tr>
-<<<<<<< HEAD
+                <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px' }}>Analyzing Market Data...</td></tr>
               ) : currentTableData.length > 0 ? currentTableData.map(stock => {
                 const isBuy = (stock.signal || '').toUpperCase().includes('BUY');
                 const isSell = (stock.signal || '').toUpperCase().includes('SELL');
@@ -410,12 +366,9 @@ export default function ScannerPage() {
                 );
               }) : (
                 <tr>
-                   <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--sp-xl)' }}>No matching stocks found in NIFTY 500.</td>
+                   <td colSpan="12" style={{ textAlign: 'center', padding: 'var(--sp-xl)' }}>No matching stocks found in NIFTY 500.</td>
                 </tr>
-              )}
-=======
-              ))}
->>>>>>> ebb6c0c10e97a230ff2938d40fab25a6419e2548
+              )
             </tbody>
           </table>
         </div>

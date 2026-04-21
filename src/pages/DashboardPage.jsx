@@ -14,6 +14,10 @@ import {
 import { PORTFOLIO_POSITIONS, SECTOR_ALLOCATION } from '../data/mockData';
 import kiteApi from '../services/kiteApi';
 import breezeApi from '../services/breezeApi';
+import InstitutionalDashboard from '../components/trading/InstitutionalDashboard';
+import OptionChainDashboard from '../components/trading/OptionChainDashboard';
+import OrderEntry from '../components/trading/OrderEntry';
+import { AnimatePresence } from 'framer-motion';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
 
@@ -149,6 +153,7 @@ function MarketOverview() {
 export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState('1M');
   const [positions, setPositions] = useState(PORTFOLIO_POSITIONS);
+  const [selectedStock, setSelectedStock] = useState(null);
 
   // Fetch live holdings from both brokers
   useEffect(() => {
@@ -347,6 +352,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Institutional & Derivatives Cockpit Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <InstitutionalDashboard />
+        <OptionChainDashboard symbol="NIFTY" />
+      </div>
+
       {/* TradingView Market Overview + Equity Curve */}
       <div className="grid-2" style={{ marginBottom: 'var(--sp-lg)' }}>
         {/* Market Overview Widget */}
@@ -422,10 +433,11 @@ export default function DashboardPage() {
                   <th>Qty</th>
                   <th>Avg Price</th>
                   <th>CMP</th>
-                  <th>Investment</th>
+                   <th>Investment</th>
                   <th>Current Value</th>
                   <th>P&L</th>
                   <th>P&L %</th>
+                  <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -451,10 +463,19 @@ export default function DashboardPage() {
                     <td className={pnl >= 0 ? 'text-profit' : 'text-loss'} style={{ fontWeight: 600 }}>
                       {pnl >= 0 ? '+' : ''}₹{pnl.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </td>
-                    <td>
+                     <td>
                       <span className={`badge ${pnl >= 0 ? 'badge-buy' : 'badge-sell'}`}>
                         {pnl >= 0 ? '▲' : '▼'} {Math.abs(pnlPercent).toFixed(2)}%
                       </span>
+                    </td>
+                    <td>
+                      <button 
+                        onClick={() => setSelectedStock({ symbol: pos.symbol, price: pos.currentPrice })}
+                        className="p-2 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white rounded-lg transition-all"
+                        title="Quick Trade"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                      </button>
                     </td>
                   </tr>
                 );
@@ -463,6 +484,17 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
+
+      {/* Trade Modal */}
+      <AnimatePresence>
+        {selectedStock && (
+          <OrderEntry 
+            symbol={selectedStock.symbol} 
+            currentPrice={selectedStock.price} 
+            onClose={() => setSelectedStock(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

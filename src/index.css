@@ -2,18 +2,18 @@
   --sidebar-width: 260px;
   --sidebar-collapsed: 80px;
 
-  /* Colors - Dark Professional Theme */
-  --c-bg-primary: #0f172a;
-  --c-bg-secondary: #1e293b;
-  --c-bg-tertiary: #334155;
-  --c-border: rgba(148, 163, 184, 0.1);
-  --c-text-primary: #f8fafc;
-  --c-text-secondary: #94a3b8;
-  --c-text-muted: #64748b;
+  /* Colors - OLED Professional Theme */
+  --c-bg-primary: #000000;
+  --c-bg-secondary: #0a0a0a;
+  --c-bg-tertiary: #141414;
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-text-primary: #ffffff;
+  --c-text-secondary: #a1a1aa;
+  --c-text-muted: #52525b;
   --c-accent: #6366f1;
   --c-accent-hover: #818cf8;
-  --c-accent-subtle: rgba(99, 102, 241, 0.15);
-  --c-cyan: #22d3ee;
+  --c-accent-subtle: rgba(99, 102, 241, 0.1);
+  --c-cyan: #06b6d4;
   
   --c-profit: #22c55e;
   --c-profit-bg: rgba(34, 197, 94, 0.1);
@@ -54,11 +54,12 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   background-color: var(--c-bg-primary);
   color: var(--c-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
 .app-container {
@@ -433,7 +434,7 @@ body {
   align-items: center;
   margin-bottom: var(--sp-lg);
   padding-bottom: var(--sp-sm);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .card-title {
