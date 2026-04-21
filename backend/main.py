@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import yfinance as yf
 import json
+# DEPLOYMENT TRIGGER: 2026-04-21 17:20
 import os
 import concurrent.futures
 from typing import List, Optional, Dict
