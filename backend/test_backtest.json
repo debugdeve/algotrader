@@ -1,0 +1,5 @@
+{
+  "symbol": "RELIANCE",
+  "logic": "RSI < 30",
+  "period": "1y"
+}

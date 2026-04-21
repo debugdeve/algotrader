@@ -1,0 +1,12 @@
+{
+  "conditions": [
+    {
+      "left": {
+        "name": "RSI",
+        "period": 14
+      },
+      "operator": "<",
+      "right_value": 30
+    }
+  ]
+}

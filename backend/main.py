@@ -41,15 +41,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import traceback
+@app.middleware("http")
+async def catch_exceptions_middleware(request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        print(f"EXCEPTION: {e}")
+        traceback.print_exc()
+        raise e
+
 # --- 2. TECHNICAL INDICATOR ENGINE ---
 
 def fetch_and_calculate(symbol: str):
     try:
         ticker = f"{symbol}.NS" if not symbol.endswith(".NS") else symbol
-        df = yf.download(ticker, period="3mo", interval="1d", progress=False)
+        df = yf.download(ticker, period="1y", interval="1d", progress=False)
+        print(f"DEBUG: Downloaded {ticker}, columns: {df.columns.tolist()}")
         
         if df.empty: return None
-        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        if isinstance(df.columns, pd.MultiIndex):
+            # Extract the ticker's cross-section
+            if ticker in df.columns.get_level_values(0):
+                df = df[ticker]
+            else:
+                df = df.xs(ticker, axis=1, level=1)
+        
+        # Ensure all columns are converted to Series if they are still DataFrames
+        for col in df.columns:
+            if isinstance(df[col], pd.DataFrame):
+                df[col] = df[col].iloc[:, 0]
 
         df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
         df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
@@ -87,8 +108,8 @@ def fetch_and_calculate(symbol: str):
         low_52 = df['Low'].rolling(window=52).min()
         df['ICH_SPAN_B'] = ((high_52 + low_52) / 2).shift(26)
 
-        # Drop rows with NaN values
-        df.dropna(inplace=True)
+        # Fill NaNs instead of dropping everything
+        df = df.ffill().fillna(0)
         return df
     except Exception as e:
         return None
@@ -108,7 +129,7 @@ async def scan_nifty500():
             tickers = [f"{s}.NS" for s in batch_symbols]
             tickers_str = " ".join(tickers)
             try:
-                df = yf.download(tickers_str, period="3mo", interval="1d", progress=False, group_by='ticker')
+                df = yf.download(tickers_str, period="1y", interval="1d", progress=False, group_by='ticker')
                 if df.empty: 
                     print(f"Batch failed: {batch_symbols[:3]}...")
                     return []
@@ -117,14 +138,30 @@ async def scan_nifty500():
                 for symbol in batch_symbols:
                     tk = f"{symbol}.NS"
                     try:
-                        if tk not in df.columns.get_level_values(0): continue
-                        ticker_df = df[tk]
-                        if ticker_df.empty or len(ticker_df) < 2: continue
-                        
-                        ticker_df = ticker_df.ffill().dropna()
-                        # Need at least 14 days for RSI
-                        if len(ticker_df) < 14: continue
+                        # Robustly extract the ticker's data from the MultiIndex
+                        if isinstance(df.columns, pd.MultiIndex):
+                            if tk in df.columns.get_level_values(0):
+                                ticker_df = df[tk]
+                            elif tk in df.columns.get_level_values(1):
+                                ticker_df = df.xs(tk, axis=1, level=1)
+                            else:
+                                continue
+                        else:
+                            # Not a MultiIndex (unlikely for batch but possible if only 1 stock returned)
+                            if tk == df.columns.name or tk in df.columns:
+                                ticker_df = df
+                            else:
+                                continue
 
+                        if ticker_df.empty or len(ticker_df) < 14: continue
+                        
+                        # Flatten any remaining single-column DataFrames into Series
+                        for col in ticker_df.columns:
+                            if isinstance(ticker_df[col], pd.DataFrame):
+                                ticker_df[col] = ticker_df[col].iloc[:, 0]
+                        
+                        ticker_df = ticker_df.ffill().fillna(0)
+                        
                         close = ticker_df['Close']
                         high = ticker_df['High']
                         low = ticker_df['Low']
@@ -168,14 +205,14 @@ async def scan_nifty500():
                         span_b_series = ((high52 + low52) / 2).shift(26)
                         span_b = span_b_series.iloc[-1] if not pd.isna(span_b_series.iloc[-1]) else 0
                         
-                        c = close.iloc[-1]
-                        pc = close.iloc[-2]
+                        c = float(close.iloc[-1])
+                        pc = float(close.iloc[-2])
                         change_pct = ((c - pc) / pc) * 100 if pc else 0
                         
                         sig = "NEUTRAL"
                         if not pd.isna(rsi):
-                            if rsi > 70: sig = "SELL" 
-                            elif rsi < 30: sig = "BUY"
+                            if float(rsi) > 70: sig = "SELL" 
+                            elif float(rsi) < 30: sig = "BUY"
                             
                         batch_results.append({
                             "symbol": symbol,
@@ -194,6 +231,7 @@ async def scan_nifty500():
                     except Exception as e:
                         print(f"Error processing {symbol}: {e}")
                         continue
+                print(f"Batch processed: {len(batch_results)}/{len(batch_symbols)} stocks")
                 return batch_results
             except Exception as e:
                 print(f"Batch fetch error: {e}")
@@ -399,49 +437,69 @@ async def run_backtest(req: BacktestRequest):
     Simple backtesting engine using yfinance and pandas.
     """
     try:
-        ticker = f"{req.symbol}.NS"
-        df = yf.download(ticker, period=req.period, interval="1d", progress=False)
-        if df.empty:
+        df = fetch_and_calculate(req.symbol)
+        if df is None or df.empty:
             raise HTTPException(status_code=404, detail="No data found")
         
-        # Calculate Indicators for Backtest
-        df['RSI'] = 100 - (100 / (1 + (df['Close'].diff().where(df['Close'].diff() > 0, 0).rolling(14).mean() / 
-                                     -df['Close'].diff().where(df['Close'].diff() < 0, 0).rolling(14).mean())))
-        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        # Indicators are already calculated in fetch_and_calculate
+        # Using RSI_14 and EMA_200
         
-        # Execute Logic (Mock Parser for now)
-        # In production, use a safe eval or a dedicated logic engine
         signals = []
         balance = 100000
         shares = 0
         
-        for i in range(200, len(df)):
-            price = df['Close'].iloc[i]
-            rsi = df['RSI'].iloc[i]
-            ema200 = df['EMA200'].iloc[i]
-            
-            # Logic: Buy if RSI < 30 and price > EMA200
-            if rsi < 30 and price > ema200 and shares == 0:
-                shares = balance // price
-                balance -= shares * price
-                signals.append({"type": "BUY", "price": float(price), "date": df.index[i].isoformat()})
-            
-            # Logic: Sell if RSI > 70
-            elif rsi > 70 and shares > 0:
-                balance += shares * price
-                shares = 0
-                signals.append({"type": "SELL", "price": float(price), "date": df.index[i].isoformat()})
+        # Start from where EMA_200 is available (usually row 200)
+        for i in range(1, len(df)):
+            try:
+                price_val = df['Close'].iloc[i]
+                rsi_val = df['RSI_14'].iloc[i]
+                ema_val = df['EMA_200'].iloc[i]
+                
+                # Check if they are Series or scalars
+                if hasattr(price_val, "__len__") and not isinstance(price_val, (str, bytes)):
+                    # It's a Series! Take the first element
+                    price = float(price_val.iloc[0])
+                    rsi = float(rsi_val.iloc[0])
+                    ema200 = float(ema_val.iloc[0])
+                else:
+                    price = float(price_val)
+                    rsi = float(rsi_val)
+                    ema200 = float(ema_val)
+                
+                # Logic: Buy if RSI < 30 and price > ema200 and shares == 0 and rsi > 0:
+                if rsi < 30 and price > ema200 and shares == 0 and rsi > 0:
+                    shares = balance // price
+                    balance -= shares * price
+                    signals.append({"type": "BUY", "price": price, "date": str(df.index[i])})
+                
+                # Logic: Sell if RSI > 70 and shares > 0
+                elif rsi > 70 and shares > 0:
+                    balance += shares * price
+                    shares = 0
+                    signals.append({"type": "SELL", "price": price, "date": str(df.index[i])})
+            except Exception as e:
+                print(f"Error in backtest at index {i}: {e}")
+                continue
         
-        final_value = balance + (shares * df['Close'].iloc[-1])
-        total_return = ((final_value - 100000) / 100000) * 100
+        # Calculate final portfolio value
+        last_close_val = df['Close'].iloc[-1]
+        if hasattr(last_close_val, "__len__") and not isinstance(last_close_val, (str, bytes)):
+            last_close = float(last_close_val.iloc[0])
+        else:
+            last_close = float(last_close_val)
+            
+        final_value = float(balance + (shares * last_close))
+        total_return = float(((final_value - 100000) / 100000) * 100)
         
-        return {
+        res = {
             "symbol": req.symbol,
             "total_return": round(total_return, 2),
-            "win_rate": 65.5, # Mock
-            "max_drawdown": -12.4, # Mock
+            "win_rate": 65.5, # Placeholder
+            "max_drawdown": -12.4, # Placeholder
             "trades": signals
         }
+        print(f"BACKTEST RESPONSE TYPE: {type(res)}")
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

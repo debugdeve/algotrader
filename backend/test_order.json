@@ -1,0 +1,7 @@
+{
+  "broker": "ZERODHA",
+  "symbol": "RELIANCE",
+  "qty": 1,
+  "type": "MARKET",
+  "side": "BUY"
+}
