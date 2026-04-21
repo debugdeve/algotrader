@@ -4,7 +4,7 @@ import { Target, Activity, Percent, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import config from '../../config';
 
-const OptionChainDashboard = ({ symbol = 'NIFTY' }) => {
+const DerivativesPulse = ({ symbol = 'NIFTY' }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -44,18 +44,26 @@ const OptionChainDashboard = ({ symbol = 'NIFTY' }) => {
             <div className="grid grid-cols-3 gap-6 mb-8">
                 <div style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)' }} className="p-4 rounded-xl">
                     <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.1em', opacity: 0.5 }}>PUT-CALL RATIO</div>
-                    <div style={{ fontSize: 'var(--title-lg)', fontWeight: 900 }} className={pcrColor}>{pcrValue.toFixed(2)}</div>
+                    <div style={{ fontSize: 'var(--title-lg)', fontWeight: 900 }} className={pcrColor}>
+                        {pcrValue > 0 ? pcrValue.toFixed(2) : '-'}
+                    </div>
                 </div>
                 <div style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)' }} className="p-4 rounded-xl">
                     <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.1em', opacity: 0.5 }}>MAX PAIN</div>
-                    <div style={{ fontSize: 'var(--title-lg)', fontWeight: 900, color: 'white' }}>{data?.max_pain.toLocaleString()}</div>
+                    <div style={{ fontSize: 'var(--title-lg)', fontWeight: 900, color: 'white' }}>
+                        {data?.max_pain ? data.max_pain.toLocaleString() : '-'}
+                    </div>
                 </div>
                 <div style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)' }} className="p-4 rounded-xl">
                     <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.1em', opacity: 0.5 }}>CE / PE OI</div>
                     <div style={{ fontSize: 'var(--body-md)', fontWeight: 800, marginTop: '4px' }}>
-                        <span className="text-rose-400">{(data?.total_ce_oi / 1000000).toFixed(1)}M</span>
+                        <span className="text-rose-400">
+                            {data?.total_ce_oi ? `${(data.total_ce_oi / 1000000).toFixed(1)}M` : '-'}
+                        </span>
                         <span style={{ margin: '0 8px', opacity: 0.2 }}>/</span>
-                        <span className="text-emerald-400">{(data?.total_pe_oi / 1000000).toFixed(1)}M</span>
+                        <span className="text-emerald-400">
+                            {data?.total_pe_oi ? `${(data.total_pe_oi / 1000000).toFixed(1)}M` : '-'}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -106,4 +114,4 @@ const OptionChainDashboard = ({ symbol = 'NIFTY' }) => {
     );
 };
 
-export default OptionChainDashboard;
+export default DerivativesPulse;

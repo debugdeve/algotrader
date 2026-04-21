@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import InstitutionalDashboard from '../components/trading/InstitutionalDashboard';
+import InstitutionalFlow from '../components/trading/InstitutionalFlow';
+import DerivativesPulse from '../components/trading/DerivativesPulse';
 
 /* ── TradingView News Widget ── */
 function TradingNews() {
@@ -37,15 +38,15 @@ function TradingNews() {
   );
 }
 
-export default function MarketInsightsPage() {
+export default function MarketPulsePage() {
   return (
     <div className="animate-fadeIn" style={{ maxWidth: '1600px', margin: '0 auto' }}>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 'var(--sp-3xl)' }}>
         <div>
           <h1 style={{ fontSize: 'var(--display-md)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 'var(--sp-xs)' }}>
-            Market Intelligence
+            Market Pulse
           </h1>
-          <p style={{ fontSize: 'var(--body-md)', opacity: 0.6 }}>Institutional Flows & Real-Time Market News</p>
+          <p style={{ fontSize: 'var(--body-md)', opacity: 0.6 }}>Institutional Flows, Derivatives Analytics & Market News</p>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div className="vault-insight-chip">STREAM: LIVE</div>
@@ -53,16 +54,18 @@ export default function MarketInsightsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Institutional Section */}
+        {/* Derivatives Pulse Section */}
         <div className="card" style={{ background: 'var(--surface-container-low)', padding: 'var(--sp-2xl)' }}>
-          <div className="card-header" style={{ marginBottom: 'var(--sp-xl)' }}>
-            <h3 className="card-title">Institutional Net Flow</h3>
-          </div>
-          <InstitutionalDashboard />
+          <DerivativesPulse symbol="NIFTY" />
         </div>
 
-        {/* News Section */}
+        {/* Institutional Section */}
         <div className="card" style={{ background: 'var(--surface-container-low)', padding: 'var(--sp-2xl)' }}>
+          <InstitutionalFlow />
+        </div>
+
+        {/* News Section (Full Width below) */}
+        <div className="card lg:col-span-2" style={{ background: 'var(--surface-container-low)', padding: 'var(--sp-2xl)' }}>
           <div className="card-header" style={{ marginBottom: 'var(--sp-xl)' }}>
             <h3 className="card-title">Global Trading Timeline</h3>
           </div>

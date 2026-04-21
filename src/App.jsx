@@ -10,7 +10,7 @@ import BacktestPage from './pages/BacktestPage';
 import CustomScreenerPage from './pages/CustomScreenerPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
-import MarketInsightsPage from './pages/MarketInsightsPage';
+import MarketPulsePage from './pages/MarketPulsePage';
 import './index.css';
 
 // Protected Route Component
@@ -51,7 +51,7 @@ function App() {
           <Route path="/charts" element={<ProtectedRoute><ChartsPage /></ProtectedRoute>} />
           <Route path="/backtest" element={<ProtectedRoute><BacktestPage /></ProtectedRoute>} />
           <Route path="/custom-screener" element={<ProtectedRoute><CustomScreenerPage /></ProtectedRoute>} />
-          <Route path="/insights" element={<ProtectedRoute><MarketInsightsPage /></ProtectedRoute>} />
+          <Route path="/market-pulse" element={<ProtectedRoute><MarketPulsePage /></ProtectedRoute>} />
           
           {/* Default Route */}
           <Route path="/" element={<Navigate to="/dashboard" />} />

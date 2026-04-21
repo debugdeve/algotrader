@@ -4,7 +4,7 @@ import { TrendingUp, TrendingDown, Users, Globe } from 'lucide-react';
 import axios from 'axios';
 import config from '../../config';
 
-const InstitutionalDashboard = () => {
+const InstitutionalFlow = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -119,4 +119,4 @@ const InstitutionalDashboard = () => {
     );
 };
 
-export default InstitutionalDashboard;
+export default InstitutionalFlow;

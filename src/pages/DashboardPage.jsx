@@ -14,9 +14,10 @@ import {
 import { PORTFOLIO_POSITIONS, SECTOR_ALLOCATION } from '../data/mockData';
 import kiteApi from '../services/kiteApi';
 import breezeApi from '../services/breezeApi';
-import OptionChainDashboard from '../components/trading/OptionChainDashboard';
 import OrderEntry from '../components/trading/OrderEntry';
 import { AnimatePresence } from 'framer-motion';
+import { Activity, ChevronRight } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
 
@@ -365,9 +366,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Derivatives Cockpit Section */}
-      <div className="grid grid-cols-1 gap-6 mb-8">
-        <OptionChainDashboard symbol="NIFTY" />
+      {/* Market Pulse & F&O Navigation Card */}
+      <div className="card" style={{ background: 'var(--surface-container-low)', padding: 'var(--sp-2xl)', marginBottom: 'var(--sp-2xl)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-lg)' }}>
+            <div style={{ padding: 'var(--sp-md)', borderRadius: 'var(--r-xl)', background: 'rgba(99, 102, 241, 0.1)' }}>
+              <Activity style={{ color: 'var(--primary)', width: '24px', height: '24px' }} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: 'var(--title-lg)', fontWeight: 800, color: 'white', letterSpacing: '-0.01em' }}>Market Pulse & F&O Data</h3>
+              <p style={{ fontSize: 'var(--body-md)', opacity: 0.5 }}>Real-time institutional flow, PCR, and option chain analytics</p>
+            </div>
+          </div>
+          <NavLink 
+            to="/market-pulse" 
+            className="btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-xs)', padding: '12px 24px', borderRadius: 'var(--r-md)', fontSize: 'var(--label-md)', fontWeight: 800 }}
+          >
+            VIEW DETAILS
+            <ChevronRight size={16} />
+          </NavLink>
+        </div>
       </div>
 
       {/* TradingView Market Overview + Equity Curve */}
