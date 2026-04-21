@@ -313,40 +313,54 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="animate-fadeIn">
-      {/* Ticker Tape — Live prices of holdings */}
-      <TickerTape symbols={holdingSymbols} />
+    <div className="animate-fadeIn" style={{ maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Ticker Tape */}
+      <div style={{ marginBottom: 'var(--sp-2xl)' }}>
+        <TickerTape symbols={holdingSymbols} />
+      </div>
 
-      <div className="page-header">
-        <h2>Portfolio Dashboard</h2>
-        <p>Real-time overview of your trading portfolio</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 'var(--sp-3xl)' }}>
+        <div>
+          <h1 style={{ fontSize: 'var(--display-md)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 'var(--sp-xs)' }}>
+            The Sovereign Vault
+          </h1>
+          <p style={{ fontSize: 'var(--body-md)', opacity: 0.6 }}>Portfolio Performance & Institutional Insights</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 'var(--label-md)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--primary)' }}>
+            Archival Tag: {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+          <div style={{ fontSize: 'var(--label-md)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Verified Session: Active
+          </div>
+        </div>
       </div>
 
       {/* Stat Cards */}
-      <div className="stat-grid">
+      <div className="stat-grid" style={{ marginBottom: 'var(--sp-3xl)' }}>
         <div className="stat-card">
-          <div className="stat-label">Total Investment</div>
+          <div className="stat-label">Liquidity Base</div>
           <div className="stat-value">{formatCurrency(summary.totalInvestment)}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Current Value</div>
+          <div className="stat-label">Market Valuation</div>
           <div className="stat-value">{formatCurrency(summary.totalCurrent)}</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Day's P&L</div>
+        <div className="stat-card" style={{ background: summary.dayPnl >= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(244, 63, 94, 0.05)' }}>
+          <div className="stat-label">Day's Net Flow</div>
           <div className={`stat-value ${summary.dayPnl >= 0 ? 'profit' : 'loss'}`}>
             {summary.dayPnl >= 0 ? '+' : ''}{formatCurrency(summary.dayPnl)}
           </div>
-          <div className={`stat-change ${summary.dayPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+          <div className={`stat-change ${summary.dayPnl >= 0 ? 'text-profit' : 'text-loss'}`} style={{ fontWeight: 800 }}>
             {summary.dayPnl >= 0 ? '▲' : '▼'} {Math.abs(summary.dayPnl / summary.totalCurrent * 100).toFixed(2)}%
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Overall P&L</div>
+        <div className="stat-card" style={{ border: 'none', background: 'var(--surface-container-high)' }}>
+          <div className="stat-label">Vault Appreciation</div>
           <div className={`stat-value ${summary.overallPnl >= 0 ? 'profit' : 'loss'}`}>
             {summary.overallPnl >= 0 ? '+' : ''}{formatCurrency(summary.overallPnl)}
           </div>
-          <div className={`stat-change ${summary.overallPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+          <div className={`stat-change ${summary.overallPnl >= 0 ? 'text-profit' : 'text-loss'}`} style={{ fontWeight: 800 }}>
             {summary.overallPnl >= 0 ? '▲' : '▼'} {Math.abs(summary.overallPnlPercent).toFixed(2)}%
           </div>
         </div>
@@ -416,27 +430,37 @@ export default function DashboardPage() {
       </div>
 
       {/* Open Positions Table */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
-            Open Positions
-          </span>
-          <span className="badge badge-active">{positions.length} Stocks</span>
+      <div className="card" style={{ background: 'var(--surface-container-low)', padding: 0, overflow: 'hidden' }}>
+        <div className="card-header" style={{ padding: 'var(--sp-2xl)', marginBottom: 0, borderBottom: '1px solid var(--outline-variant)' }}>
+          <div>
+            <h3 style={{ fontSize: 'var(--headline-md)', fontWeight: 800, letterSpacing: '-0.02em' }}>Vault Holdings</h3>
+            <p style={{ fontSize: 'var(--body-md)', opacity: 0.5, marginTop: '4px' }}>Authenticated Portfolio Assets</p>
+          </div>
+          <div className="vault-insight-chip" style={{ 
+            background: 'var(--tertiary-container)', 
+            padding: '6px 16px', 
+            borderRadius: 'var(--r-full)', 
+            fontSize: 'var(--label-md)', 
+            fontWeight: 800, 
+            color: 'var(--primary)',
+            letterSpacing: '0.05em'
+          }}>
+            LOCKED • {positions.length} ASSETS
+          </div>
         </div>
         <div className="table-container">
-          <table id="positions-table">
+          <table id="positions-table" style={{ borderCollapse: 'collapse' }}>
             <thead>
                 <tr>
-                  <th>Broker</th>
-                  <th>Symbol</th>
-                  <th>Qty</th>
-                  <th>Avg Price</th>
-                  <th>CMP</th>
-                   <th>Investment</th>
-                  <th>Current Value</th>
-                  <th>P&L</th>
-                  <th>P&L %</th>
+                  <th>Origin</th>
+                  <th>Asset Class</th>
+                  <th>Quantity</th>
+                  <th>Entry Basis</th>
+                  <th>Market Price</th>
+                   <th>Principal</th>
+                  <th>Valuation</th>
+                  <th>Net P&L</th>
+                  <th>Return</th>
                   <th>Actions</th>
                 </tr>
             </thead>
@@ -448,33 +472,44 @@ export default function DashboardPage() {
                 const pnlPercent = (pnl / investment) * 100;
 
                 return (
-                  <tr key={`${pos.broker}-${pos.symbol}`}>
+                  <tr key={`${pos.broker}-${pos.symbol}`} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.02)' }}>
                     <td>
-                       <span className="badge" style={{ background: pos.broker === 'ZERODHA' ? 'rgba(64, 196, 255, 0.1)' : 'rgba(255, 128, 0, 0.1)', color: pos.broker === 'ZERODHA' ? 'var(--c-cyan)' : '#FF8000' }}>
-                        {pos.broker === 'ZERODHA' ? 'Kite' : 'Breeze'}
+                       <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--primary)', opacity: 0.6 }}>
+                        {pos.broker}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 600, color: 'var(--c-text-primary)' }}>{pos.symbol}</td>
-                    <td>{pos.qty}</td>
-                    <td>₹{pos.avgPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td>₹{pos.currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td>₹{investment.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                    <td>₹{currentVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                    <td className={pnl >= 0 ? 'text-profit' : 'text-loss'} style={{ fontWeight: 600 }}>
+                    <td>
+                      <div style={{ fontWeight: 800, fontSize: 'var(--body-md)', letterSpacing: '-0.01em' }}>{pos.symbol}</div>
+                      <div style={{ fontSize: '10px', opacity: 0.5, textTransform: 'uppercase' }}>EQUITY • NSE</div>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{pos.qty}</td>
+                    <td style={{ opacity: 0.8 }}>₹{pos.avgPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ fontWeight: 800 }}>₹{pos.currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ opacity: 0.8 }}>₹{investment.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                    <td style={{ fontWeight: 800 }}>₹{currentVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                    <td className={pnl >= 0 ? 'text-profit' : 'text-loss'} style={{ fontWeight: 800 }}>
                       {pnl >= 0 ? '+' : ''}₹{pnl.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </td>
                      <td>
-                      <span className={`badge ${pnl >= 0 ? 'badge-buy' : 'badge-sell'}`}>
-                        {pnl >= 0 ? '▲' : '▼'} {Math.abs(pnlPercent).toFixed(2)}%
+                      <span style={{ 
+                        padding: '4px 8px', 
+                        borderRadius: '4px', 
+                        background: pnl >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+                        color: pnl >= 0 ? 'var(--success)' : 'var(--error)',
+                        fontSize: '11px',
+                        fontWeight: 800
+                      }}>
+                        {pnl >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
                       </span>
                     </td>
                     <td>
                       <button 
                         onClick={() => setSelectedStock({ symbol: pos.symbol, price: pos.currentPrice })}
-                        className="p-2 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white rounded-lg transition-all"
-                        title="Quick Trade"
+                        className="btn-primary"
+                        style={{ padding: '8px', borderRadius: 'var(--r-md)', minWidth: '36px' }}
+                        title="Initiate Transaction"
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                       </button>
                     </td>
                   </tr>

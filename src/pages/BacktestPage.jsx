@@ -173,9 +173,16 @@ export default function BacktestPage() {
 
   return (
     <div className="animate-fadeIn">
-      <div className="page-header">
-        <h2>Backtesting Module</h2>
-        <p>Test your trading strategies on historical NSE data</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 'var(--sp-3xl)' }}>
+        <div>
+          <h1 style={{ fontSize: 'var(--display-md)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 'var(--sp-xs)' }}>
+            Empirical Validation
+          </h1>
+          <p style={{ fontSize: 'var(--body-md)', opacity: 0.6 }}>Historical Strategy Backtesting • Quant Analysis</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="vault-insight-chip">MODE: SIMULATION</div>
+        </div>
       </div>
 
       <div className="grid-2" style={{ marginBottom: 'var(--sp-lg)', gridTemplateColumns: '380px 1fr' }}>

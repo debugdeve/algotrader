@@ -37,60 +37,59 @@ const OrderEntry = ({ symbol = 'RELIANCE', currentPrice = 2950.45, onClose }) =>
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
         >
-            <div className="bg-[#0A0A0A] border border-zinc-800 w-full max-w-md rounded-[2.5rem] p-8 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden relative">
-                {/* Header */}
-                <div className="flex justify-between items-start mb-8">
+            <div className="glass w-full max-w-md rounded-2xl p-10 shadow-vault overflow-hidden relative">
+                <div className="flex justify-between items-start mb-10">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <h2 className="text-3xl font-black text-white">{symbol}</h2>
-                            <span className="text-zinc-500 font-mono text-sm">NSE</span>
+                            <h2 style={{ fontSize: 'var(--display-sm)', fontWeight: 800, letterSpacing: '-0.02em', color: 'white' }}>{symbol}</h2>
+                            <div className="vault-insight-chip">NSE • EQUITY</div>
                         </div>
-                        <div className="text-zinc-400 font-medium">₹{currentPrice.toLocaleString()}</div>
+                        <div style={{ fontSize: 'var(--title-lg)', fontWeight: 600, color: 'var(--primary)' }}>₹{currentPrice.toLocaleString()}</div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-zinc-900 rounded-full text-zinc-500 transition-colors">
-                        <X size={24} />
+                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-white/40 transition-colors">
+                        <X size={20} strokeWidth={3} />
                     </button>
                 </div>
 
-                {/* Side Selector */}
-                <div className="flex p-1 bg-zinc-900 rounded-2xl mb-8">
+                <div className="flex p-1 bg-black/20 rounded-xl mb-10">
                     <button 
                         onClick={() => setSide('BUY')}
-                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${side === 'BUY' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        style={{ background: side === 'BUY' ? 'var(--success)' : 'transparent' }}
+                        className={`flex-1 py-3 rounded-lg font-800 text-[11px] tracking-[0.1em] transition-all ${side === 'BUY' ? 'text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
                     >
-                        BUY
+                        ACQUIRE
                     </button>
                     <button 
                         onClick={() => setSide('SELL')}
-                        className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${side === 'SELL' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        style={{ background: side === 'SELL' ? 'var(--error)' : 'transparent' }}
+                        className={`flex-1 py-3 rounded-lg font-800 text-[11px] tracking-[0.1em] transition-all ${side === 'SELL' ? 'text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
                     >
-                        SELL
+                        LIQUIDATE
                     </button>
                 </div>
 
-                {/* Inputs */}
-                <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="grid grid-cols-2 gap-6 mb-10">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Quantity</label>
+                        <label style={{ fontSize: '10px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.1em', opacity: 0.5 }}>QUANTITY</label>
                         <input 
                             type="number"
                             value={qty}
                             onChange={(e) => setQty(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-indigo-500 transition-colors"
+                            className="form-input"
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Price Type</label>
+                        <label style={{ fontSize: '10px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '0.1em', opacity: 0.5 }}>EXECUTION</label>
                         <select 
                             value={orderType}
                             onChange={(e) => setOrderType(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-indigo-500 appearance-none transition-colors"
+                            className="form-input appearance-none"
                         >
-                            <option value="MARKET">Market</option>
-                            <option value="LIMIT">Limit</option>
-                            <option value="SL">Stop-Loss</option>
+                            <option value="MARKET">Market Execution</option>
+                            <option value="LIMIT">Limit Order</option>
+                            <option value="SL">Stop Protection</option>
                         </select>
                     </div>
                 </div>
@@ -111,20 +110,19 @@ const OrderEntry = ({ symbol = 'RELIANCE', currentPrice = 2950.45, onClose }) =>
                     </motion.div>
                 )}
 
-                {/* Execution Button */}
                 <button 
                     onClick={handleExecute}
                     disabled={loading}
-                    className={`w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 transition-all ${
-                        loading ? 'bg-zinc-800 text-zinc-600' : (side === 'BUY' ? 'bg-emerald-500 hover:bg-emerald-400 text-white' : 'bg-rose-500 hover:bg-rose-400 text-white')
+                    className={`btn-vault-primary w-full py-5 rounded-lg font-800 text-[13px] tracking-[0.1em] flex items-center justify-center gap-3 transition-all ${
+                        loading ? 'opacity-50 grayscale' : ''
                     }`}
                 >
                     {loading ? (
-                        <div className="w-6 h-6 border-4 border-zinc-600 border-t-white rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                     ) : (
                         <>
-                            <Zap size={20} fill="currentColor" />
-                            {side === 'BUY' ? 'Instant Buy' : 'Instant Sell'}
+                            <Zap size={16} fill="currentColor" />
+                            {side === 'BUY' ? 'EXECUTE ACQUISITION' : 'EXECUTE LIQUIDATION'}
                         </>
                     )}
                 </button>

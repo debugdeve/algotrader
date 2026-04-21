@@ -247,41 +247,60 @@ export default function ScannerPage() {
 
   return (
     <div className="animate-fadeIn">
-      <div className="page-header">
-        <h2>Stock Scanner (NIFTY 500)</h2>
-        <p>Screen NSE stocks using technical indicators — RSI, MACD, Stochastic RSI, EMA (20/50/200) & Ichimoku Cloud. Click any stock to view its live chart.</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 'var(--sp-3xl)' }}>
+        <div>
+          <h1 style={{ fontSize: 'var(--display-md)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 'var(--sp-xs)' }}>
+            Intelligence Scanner
+          </h1>
+          <p style={{ fontSize: 'var(--body-md)', opacity: 0.6 }}>High-Frequency Signal Detection • NIFTY 500</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="vault-insight-chip">GRID: {stocksWithIndicators.length} ASSETS</div>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
-        <div className="stat-card" onClick={() => setFilterSignal('BUY')} style={{ cursor: 'pointer', borderColor: filterSignal === 'BUY' ? '#10b981' : 'transparent' }}>
-          <div className="stat-label">Buy Signals</div>
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 'var(--sp-3xl)' }}>
+        <div className="stat-card" onClick={() => setFilterSignal('BUY')} style={{ cursor: 'pointer', background: filterSignal === 'BUY' ? 'var(--surface-container-high)' : 'var(--surface-container-low)' }}>
+          <div className="stat-label">Bullish Accumulation</div>
           <div className="stat-value profit">{signalCounts.BUY}</div>
         </div>
-        <div className="stat-card" onClick={() => setFilterSignal('SELL')} style={{ cursor: 'pointer', borderColor: filterSignal === 'SELL' ? '#ef4444' : 'transparent' }}>
-          <div className="stat-label">Sell Signals</div>
+        <div className="stat-card" onClick={() => setFilterSignal('SELL')} style={{ cursor: 'pointer', background: filterSignal === 'SELL' ? 'var(--surface-container-high)' : 'var(--surface-container-low)' }}>
+          <div className="stat-label">Bearish Distribution</div>
           <div className="stat-value loss">{signalCounts.SELL}</div>
         </div>
-        <div className="stat-card" onClick={() => setFilterSignal('NEUTRAL')} style={{ cursor: 'pointer', borderColor: filterSignal === 'NEUTRAL' ? '#64748b' : 'transparent' }}>
-          <div className="stat-label">Neutral</div>
-          <div className="stat-value">{signalCounts.NEUTRAL}</div>
+        <div className="stat-card" onClick={() => setFilterSignal('NEUTRAL')} style={{ cursor: 'pointer', background: filterSignal === 'NEUTRAL' ? 'var(--surface-container-high)' : 'var(--surface-container-low)' }}>
+          <div className="stat-label">Neutral Equilibrium</div>
+          <div className="stat-value" style={{ opacity: 0.5 }}>{signalCounts.NEUTRAL}</div>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="filter-bar">
-        <div className="search-wrapper">
-          <input className="search-input" type="text" placeholder="Search Nifty 500..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} />
+      <div className="filter-bar" style={{ display: 'flex', gap: 'var(--sp-md)', marginBottom: 'var(--sp-xl)', background: 'var(--surface-container-low)', padding: 'var(--sp-md)', borderRadius: 'var(--r-md)' }}>
+        <div className="search-wrapper" style={{ flex: 1 }}>
+          <input 
+            className="form-input" 
+            style={{ borderRadius: 'var(--r-md)' }} 
+            type="text" 
+            placeholder="Search Intelligence Grid..." 
+            value={searchTerm} 
+            onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} 
+          />
         </div>
-        <select className="form-select" value={filterSector} onChange={(e) => {setFilterSector(e.target.value); setCurrentPage(1);}}>
+        <select 
+            className="form-input" 
+            style={{ width: '240px', borderRadius: 'var(--r-md)' }} 
+            value={filterSector} 
+            onChange={(e) => {setFilterSector(e.target.value); setCurrentPage(1);}}
+        >
           {sectors.map(s => <option key={s} value={s}>{s === 'ALL' ? 'All Sectors' : s}</option>)}
         </select>
       </div>
 
       {/* Table Container */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-          <table>
+        <div className="table-container" style={{ maxHeight: '700px', overflowY: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th onClick={() => handleSort('symbol')} style={{ cursor: 'pointer' }}>Symbol <SortIcon col="symbol" /></th>
