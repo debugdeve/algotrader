@@ -6,7 +6,14 @@ export const config = {
   runtime: 'edge', // Opt-in to Edge Runtime for blistering fast AI streaming
 };
 
-export async function POST(req: Request) {
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
     const { prompt } = await req.json();
 

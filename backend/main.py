@@ -4,57 +4,55 @@ import pandas as pd
 import yfinance as yf
 import json
 import os
+import concurrent.futures
+from typing import List, Optional
+from pydantic import BaseModel
+
+# --- 1. GLOBAL DATA LOADER (No more hardcoding!) ---
+BASE_DIR = os.path.dirname(__file__)
+MARKET_CAP_PATH = os.path.join(BASE_DIR, "market_caps.json")
+NSE_500_PATH = os.path.join(BASE_DIR, "nse_500.json")
 
 # Load Market Cap Mapping
-MARKET_CAP_PATH = os.path.join(os.path.dirname(__file__), "market_caps.json")
 try:
     with open(MARKET_CAP_PATH, "r") as f:
         CAP_DATA = json.load(f)
 except Exception:
     CAP_DATA = {"LARGE_CAPS": [], "MID_CAPS": []}
 
+# Load the Full Nifty 500 Universe
+try:
+    with open(NSE_500_PATH, "r") as f:
+        FULL_NSE_500_LIST = json.load(f)
+    print(f"✅ Successfully loaded {len(FULL_NSE_500_LIST)} stocks from nse_500.json")
+except Exception as e:
+    print(f"❌ ERROR: Could not load nse_500.json: {e}")
+    FULL_NSE_500_LIST = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"] # Emergency fallback
+
 app = FastAPI(title="Algo Trading Scanner API")
 
-# Allow your Next.js frontend to talk to this backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:5173", 
-        "http://localhost:4173",
-        "https://algotrader-pro-six.vercel.app"
-    ], # Allowing Vite dev servers and production Vercel domain
+    allow_origins=["*"], # Simplified for troubleshooting
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/api/health")
-async def health_check():
-    return {"status": "ok", "service": "algo-trading-backend"}
+# --- 2. TECHNICAL INDICATOR ENGINE ---
 
 def fetch_and_calculate(symbol: str):
-    """
-    Fetches OHLCV data and calculates technical indicators (Native Pandas).
-    """
     try:
-        # 1. Fetch Data
         ticker = f"{symbol}.NS" if not symbol.endswith(".NS") else symbol
         df = yf.download(ticker, period="3mo", interval="1d", progress=False)
         
-        if df.empty:
-            raise ValueError("No data found for symbol.")
+        if df.empty: return None
+        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
 
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-
-        # 2. Native Calculations replacing pandas_ta 
-        # EMA
         df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
         df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
         df['EMA_200'] = df['Close'].ewm(span=200, adjust=False).mean()
         
-        # RSI 14
         delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -66,7 +64,6 @@ def fetch_and_calculate(symbol: str):
         max_rsi = df['RSI_14'].rolling(window=14).max()
         df['STOCH_RSI'] = (df['RSI_14'] - min_rsi) / (max_rsi - min_rsi) * 100
         
-        # MACD (12, 26, 9)
         ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
         ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
         df['MACD_12_26_9'] = ema_12 - ema_26
@@ -90,35 +87,24 @@ def fetch_and_calculate(symbol: str):
 
         # Drop rows with NaN values
         df.dropna(inplace=True)
-
         return df
-
     except Exception as e:
-        print(f"Error processing {symbol}: {e}")
         return None
+
+# --- 3. ENDPOINTS ---
 
 @app.get("/api/scan/nifty500")
 async def scan_nifty500():
-    """
-    Mass-Vectorized Data Endpoint.
-    Downloads the entire NIFTY 500 universe concurrently through yfinance.
-    Computes indicators natively across the Pandas Multi-Index dataframe.
-    """
+    """Returns the full 500 stock scan results."""
     try:
-        with open("nse_500.json", "r") as f:
-            symbols = json.load(f)
-            
-        tickers = [f"{s}.NS" for s in symbols]
+        tickers = [f"{s}.NS" for s in FULL_NSE_500_LIST]
         tickers_str = " ".join(tickers)
         
-        # 1. Vectorized Download (Requires roughly 10-15 seconds)
         df = yf.download(tickers_str, period="3mo", interval="1d", progress=False)
         
-        # 2. Extract Cross-sectional Series
         close = df['Close']
         volume = df['Volume']
         
-        # 3. Vectorized Math (Computes 500 streams simultaneously)
         ema20 = close.ewm(span=20, adjust=False).mean()
         ema50 = close.ewm(span=50, adjust=False).mean()
         ema200 = close.ewm(span=200, adjust=False).mean()
@@ -153,7 +139,6 @@ async def scan_nifty500():
         low52 = low.rolling(window=52).min()
         span_b = ((high52 + low52) / 2).shift(26)
         
-        # 4. Extract Last Row
         last_close = close.iloc[-1]
         prev_close = close.iloc[-2]
         last_vol = volume.iloc[-1]
@@ -169,17 +154,14 @@ async def scan_nifty500():
         last_span_b = span_b.iloc[-1]
         
         results = []
-        for symbol in symbols:
+        for symbol in FULL_NSE_500_LIST:
             tk = f"{symbol}.NS"
             try:
-                # Handle delisted/failing tickers safely
                 c = last_close.get(tk)
                 if pd.isna(c): continue
                 
                 pc = prev_close.get(tk)
-                change = c - pc
-                change_pct = (change / pc) * 100 if pc else 0
-                
+                change_pct = ((c - pc) / pc) * 100 if pc else 0
                 r = last_rsi.get(tk)
                 sr = last_stoch_rsi.get(tk)
                 e2 = last_ema20.get(tk)
@@ -200,7 +182,6 @@ async def scan_nifty500():
                     "symbol": symbol,
                     "price": float(c),
                     "changePercent": float(change_pct),
-                    "volume": float(last_vol.get(tk, 0)) if not pd.isna(last_vol.get(tk)) else 0,
                     "rsi": float(r) if not pd.isna(r) else None,
                     "ema20": float(e2) if not pd.isna(e2) else None,
                     "ema50": float(e5) if not pd.isna(e5) else None,
@@ -214,13 +195,10 @@ async def scan_nifty500():
                     "signal": sig,
                     "isLive": True
                 })
-            except Exception as e:
-                pass
+            except: pass
                 
         return {"stocks": results}
-        
     except Exception as e:
-        print("Scraping Multi-Index Error:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/scan/{symbol}")
@@ -254,61 +232,24 @@ async def scan_stock(symbol: str):
     
     return response
 
-# --- Custom Screener Implementation ---
-from typing import List, Optional
-from pydantic import BaseModel
-import concurrent.futures
+# --- 4. CUSTOM SCREENER & STRATEGY ---
 
 class IndicatorParam(BaseModel):
-    name: str # e.g. 'close', 'sma', 'ema', 'rsi', 'macd', 'volume'
+    name: str 
     period: Optional[int] = None
     
 class ConditionParam(BaseModel):
     left: IndicatorParam
-    operator: str # '>', '<', '==', 'crossover', 'crossunder'
+    operator: str 
     right: Optional[IndicatorParam] = None
     right_value: Optional[float] = None
 
 class CustomScanRequest(BaseModel):
     conditions: List[ConditionParam]
 
-class DualStrategyRequest(BaseModel):
-    broker: str
-    api_key: str
-    api_secret: str
-    
-    buy_enabled: bool
-    buy_allocation: float
-    buy_conditions: List[ConditionParam]
-    
-    sell_enabled: bool
-    sell_conditions: List[ConditionParam]
-    greedy_mode: bool = False
-
-# Global state to prevent infinite looping of automated trades.
-# Stores strings like "BUY_RELIANCE" or "SELL_TCS"
-EXECUTED_TRADES = set()
-
-# Mocking NSE Universe and User's dummy portfolio
-NIFTY_MOCK_UNIVERSE = [
-    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "BHARTIARTL", "ITC", "KOTAKBANK", "L&T"
-]
-MOCK_PORTFOLIO = [
-    "RELIANCE", "INFY", "ITC", "TATAMOTORS"
-]
-
-# Hardcoded NSE stocks list for the scanner backend
-NSE_STOCKS_LIST = [
-  'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
-  'HINDUNILVR', 'SBIN', 'BHARTIARTL', 'ITC', 'KOTAKBANK',
-  'LT', 'AXISBANK', 'ASIANPAINT', 'MARUTI', 'SUNPHARMA'
-]
-
 def ensure_indicator_col(df, ind: IndicatorParam) -> str:
     name = ind.name.lower()
-    if name == 'close': return 'Close'
-    if name == 'open': return 'Open'
-    if name == 'volume': return 'Volume'
+    if name in ['close', 'open', 'volume']: return name.capitalize()
     
     period = ind.period if ind.period else 14
     if name == 'sma':
@@ -325,15 +266,7 @@ def ensure_indicator_col(df, ind: IndicatorParam) -> str:
             delta = df['Close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-            rs = gain / loss
-            df[col] = 100 - (100 / (1 + rs))
-        return col
-    elif name == 'macd':
-        col = 'MACD_12_26_9'
-        if col not in df.columns:
-            ema12 = df['Close'].ewm(span=12, adjust=False).mean()
-            ema26 = df['Close'].ewm(span=26, adjust=False).mean()
-            df[col] = ema12 - ema26
+            df[col] = 100 - (100 / (1 + (gain/loss)))
         return col
     elif name == 'stoch_rsi':
         col = 'STOCH_RSI'
@@ -370,363 +303,39 @@ def ensure_indicator_col(df, ind: IndicatorParam) -> str:
 
 def evaluate_condition(df, cond: ConditionParam) -> bool:
     if len(df) < 2: return False
-    
     left_col = ensure_indicator_col(df, cond.left)
-    
-    # get right series or constant
-    if cond.right is not None:
-        right_col = ensure_indicator_col(df, cond.right)
-        right_s0 = df[right_col].iloc[-1]
-        right_s1 = df[right_col].iloc[-2]
-    else:
-        right_s0 = cond.right_value
-        right_s1 = cond.right_value
-        
+    right_s0 = df[ensure_indicator_col(df, cond.right)].iloc[-1] if cond.right else cond.right_value
     left_s0 = df[left_col].iloc[-1]
     left_s1 = df[left_col].iloc[-2]
     
-    # prevent NaNs
     if pd.isna(left_s0) or pd.isna(right_s0): return False
     
-    op = cond.operator
-    if op == '>': return left_s0 > right_s0
-    elif op == '<': return left_s0 < right_s0
-    elif op == '==': return left_s0 == right_s0
-    elif op == 'crossover': return (left_s1 <= right_s1) and (left_s0 > right_s0)
-    elif op == 'crossunder': return (left_s1 >= right_s1) and (left_s0 < right_s0)
+    if cond.operator == '>': return left_s0 > right_s0
+    if cond.operator == '<': return left_s0 < right_s0
+    if cond.operator == 'crossover': 
+        right_s1 = df[ensure_indicator_col(df, cond.right)].iloc[-2] if cond.right else cond.right_value
+        return (left_s1 <= right_s1) and (left_s0 > right_s0)
     return False
 
 def check_stock_custom(symbol: str, req: CustomScanRequest):
-    ticker = f"{symbol}.NS" if not symbol.endswith(".NS") else symbol
-    df = yf.download(ticker, period="6mo", interval="1d", progress=False)
-    if df.empty: return None
-    if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-    
+    df = fetch_and_calculate(symbol)
+    if df is None: return None
     try:
-        match = True
         for cond in req.conditions:
-            if not evaluate_condition(df, cond):
-                match = False
-                break
-                
-        if match:
-            return {
-                "symbol": symbol,
-                "price": round(float(df['Close'].iloc[-1]), 2),
-                "volume": int(df['Volume'].iloc[-1])
-            }
-    except Exception as e:
-        print(f"Error evaluating {symbol}: {e}")
-    return None
+            if not evaluate_condition(df, cond): return None
+        return {"symbol": symbol, "price": round(float(df['Close'].iloc[-1]), 2), "signal": "MATCH"}
+    except: return None
 
 @app.post("/api/custom-scan")
 async def process_custom_scan(req: CustomScanRequest):
+    """Magic Filter now scans ALL 500 stocks!"""
     results = []
-    # threadpool to speed up yf downloads
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(check_stock_custom, s, req): s for s in NSE_STOCKS_LIST}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        futures = {executor.submit(check_stock_custom, s, req): s for s in FULL_NSE_500_LIST}
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
-            if res:
-                results.append(res)
-                
+            if res: results.append(res)
     return {"matches": results}
 
-@app.post("/api/execute-strategy")
-async def execute_strategy(req: DualStrategyRequest):
-    """
-    Simultaneous Dual Strategy Execution Engine.
-    Executes BUY logic against the open market and SELL logic against the existing portfolio.
-    """
-    matches = []
-    
-    # helper struct for check_stock_custom
-    class DummyReq:
-        def __init__(self, c):
-            self.conditions = c
-            
-    def get_cap_priority(symbol: str) -> int:
-        if symbol in CAP_DATA.get("MID_CAPS", []): return 1 # Mid Cap = Priority 1
-        if symbol in CAP_DATA.get("LARGE_CAPS", []): return 2 # Large Cap = Priority 2
-        return 3 # Small Cap = Priority 3
-
-    def process_leg(action_type, check_universe, conditions, initial_allocation=0):
-        if not conditions: return
-        dummy_req = DummyReq(conditions)
-        
-        # Step 1: Scan for signals (Parallel)
-        triggered_signals = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(check_stock_custom, sym, dummy_req): sym for sym in check_universe}
-            for future in concurrent.futures.as_completed(futures):
-                res = future.result()
-                if res: triggered_signals.append(res)
-
-        if not triggered_signals: return
-
-        # Step 2: Priority Sorting (Option C: Cap Tier -> Relative Strength/Price)
-        # We use RSI or Price as a proxy for 'Relative Strength' if RSI isn't pre-calculated here.
-        # Sorting by Cap Priority ascending (1, 2, 3) and Price descending for momentum.
-        triggered_signals.sort(key=lambda x: (get_cap_priority(x["symbol"]), -x["price"]))
-
-        # Step 3: Sequential Execution (Greedy Allocation)
-        remaining_balance = initial_allocation
-        
-        for res in triggered_signals:
-            symbol = res["symbol"]
-            trade_key = f"{action_type}_{symbol}"
-            
-            if trade_key in EXECUTED_TRADES: continue
-                
-            # Quantity Calculation
-            if action_type == "BUY":
-                if req.greedy_mode:
-                    # Greedy: Use MAX possible with remaining funds
-                    qty = int(remaining_balance / max(1, res["price"]))
-                else:
-                    # Fixed Allocation Mode
-                    qty = int(initial_allocation / max(1, res["price"]))
-            else:
-                # Sell logic (fixed or portfolio balance)
-                qty = 10 
-
-            if qty > 0:
-                cost = qty * res["price"]
-                if action_type == "BUY" and cost > remaining_balance and req.greedy_mode:
-                    # In Greedy Mode, if we can't afford the calculated qty, we skip entirely (User Rule 2)
-                    print(f"[{req.broker}] SKIPPED: {symbol} (Insufficient Funds ₹{cost} > ₹{remaining_balance})")
-                    continue
-
-                EXECUTED_TRADES.add(trade_key)
-                print(f"[{req.broker}] SUCCESS: {action_type} {qty} shares of {symbol} at ₹{res['price']}.")
-                
-                if action_type == "BUY" and req.greedy_mode:
-                    remaining_balance -= cost
-                    print(f"[{req.broker}] BALANCE REMAINING: ₹{remaining_balance:.2f}")
-
-                matches.append({
-                    "symbol": symbol,
-                    "price": res["price"],
-                    "volume": res["volume"],
-                    "trade_status": "EXECUTED",
-                    "trade_action": action_type,
-                    "trade_qty": qty,
-                    "cap_group": "MID" if get_cap_priority(symbol) == 1 else "LARGE" if get_cap_priority(symbol) == 2 else "SMALL",
-                    "broker": req.broker
-                })
-
-    try:
-        # Phase 1: SELL (Optional, greedy doesn't apply to sells usually)
-        if req.sell_enabled:
-            process_leg("SELL", MOCK_PORTFOLIO, req.sell_conditions, 0)
-            
-        # Phase 2: BUY (Greedy Priority Execution)
-        if req.buy_enabled:
-            # If greedy_mode is on, we would ideally fetch real 'buy_allocation' from broker balance here.
-            process_leg("BUY", NIFTY_MOCK_UNIVERSE, req.buy_conditions, req.buy_allocation)
-            
-    except Exception as general_err:
-        raise HTTPException(status_code=500, detail=str(general_err))
-        
-    return {"matches": matches}
-
-# In a real environment, you would instantiate KiteConnect:
-# from kiteconnect import KiteConnect
-# kite = KiteConnect(api_key="your_api_key")
-
-from pydantic import BaseModel
-
-class SessionRequest(BaseModel):
-    request_token: str
-    api_key: str
-    api_secret: str
-
-class OrderRequest(BaseModel):
-    tradingsymbol: str
-    exchange: str
-    transaction_type: str
-    quantity: int
-    price: float = 0
-    order_type: str
-    product: str
-    validity: str
-    broker: str = "ZERODHA" # Default to Zerodha for backward compatibility
-
-class BreezeSessionRequest(BaseModel):
-    api_key: str
-    api_secret: str
-    session_token: str
-
-# Mock Session Storage (In Memory)
-active_sessions = {}
-
-@app.get("/api/kite/login")
-async def get_kite_login(api_key: str):
-    """
-    Returns the official Kite Connect login URL.
-    """
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API Key is required")
-    # Real URL generation: return {"login_url": kite.login_url()}
-    login_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}"
-    return {"status": "success", "login_url": login_url}
-
-@app.post("/api/kite/session")
-async def create_kite_session(req: SessionRequest):
-    """
-    Exchanges the request_token from the login redirect for a permanent access_token.
-    """
-    # Real logic:
-    # kite = KiteConnect(api_key=req.api_key)
-    # data = kite.generate_session(req.request_token, api_secret=req.api_secret)
-    # access_token = data["access_token"]
-    
-    # Mocking the session generation:
-    import time
-    time.sleep(1) # Simulate network call
-    
-    if len(req.request_token) < 5:
-        raise HTTPException(status_code=400, detail="Invalid request token")
-
-    access_token = f"mock_access_token_{int(time.time())}"
-    active_sessions[access_token] = {
-        "api_key": req.api_key,
-        "user_name": "DEMO USER",
-        "broker": "ZERODHA"
-    }
-    
-    return {
-        "status": "success", 
-        "access_token": access_token,
-        "user": active_sessions[access_token]
-    }
-
-@app.get("/api/kite/portfolio")
-async def get_kite_portfolio():
-    """
-    Returns current holdings / open positions.
-    """
-    # Real logic: 
-    # kite.set_access_token(access_token)
-    # holdings = kite.holdings()
-    
-    # Mock Holdings matching the previous mockData.js structure
-    holdings = [
-        {"symbol": "RELIANCE", "qty": 45, "avgPrice": 2450.50, "currentPrice": 2980.25},
-        {"symbol": "TCS", "qty": 20, "avgPrice": 3200.00, "currentPrice": 4120.75},
-        {"symbol": "HDFCBANK", "qty": 150, "avgPrice": 1550.25, "currentPrice": 1430.50},
-        {"symbol": "INFY", "qty": 60, "avgPrice": 1420.80, "currentPrice": 1680.10},
-        {"symbol": "ICICIBANK", "qty": 100, "avgPrice": 920.40, "currentPrice": 1080.35},
-        {"symbol": "SBIN", "qty": 250, "avgPrice": 540.60, "currentPrice": 750.80},
-    ]
-    
-    return {"status": "success", "data": holdings}
-
-@app.post("/api/kite/order")
-async def place_kite_order(order: OrderRequest):
-    """
-    Places an order on Zerodha Kite.
-    """
-    import random
-    
-    # Simulated Network latency
-    import time
-    time.sleep(0.5)
-
-    order_id = f"KT{random.randint(100000000, 999999999)}"
-    
-    order_data = {
-        "id": order_id,
-        "symbol": order.tradingsymbol,
-        "type": order.transaction_type,
-        "qty": order.quantity,
-        "price": order.price if order.order_type != 'MARKET' else 'MKT',
-        "orderType": order.order_type,
-        "product": order.product,
-        "status": "COMPLETE" if order.order_type == 'MARKET' else "OPEN",
-        "time": time.strftime("%H:%M:%S"),
-        "exchange": order.exchange
-    }
-    
-    return {
-        "status": "success",
-        "data": {"order_id": order_id},
-        "order": order_data
-    }
-
-# --- ICICI Direct Breeze Integration (Mocked) ---
-
-@app.get("/api/breeze/login")
-async def get_breeze_login(api_key: str):
-    """
-    Returns the Breeze login URL.
-    """
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API Key is required")
-    # Real URL: https://api.icicidirect.com/apiuser/login?api_key={api_key}
-    login_url = f"https://api.icicidirect.com/apiuser/login?api_key={api_key}"
-    return {"status": "success", "login_url": login_url}
-
-@app.post("/api/breeze/session")
-async def create_breeze_session(req: BreezeSessionRequest):
-    """
-    Initializes a Breeze session.
-    """
-    import time
-    time.sleep(1) # Simulate network call
-
-    if len(req.session_token) < 5:
-        raise HTTPException(status_code=400, detail="Invalid session token")
-
-    access_token = f"breeze_session_{int(time.time())}"
-    active_sessions[access_token] = {
-        "api_key": req.api_key,
-        "user_name": "ICICI TRADER",
-        "broker": "ICICI_BREEZE"
-    }
-
-    return {
-        "status": "success",
-        "access_token": access_token,
-        "user": active_sessions[access_token]
-    }
-
-@app.get("/api/breeze/portfolio")
-async def get_breeze_portfolio():
-    """
-    Returns simulated Breeze holdings.
-    """
-    holdings = [
-        {"symbol": "TATASTEEL", "qty": 100, "avgPrice": 120.50, "currentPrice": 155.25},
-        {"symbol": "ITC", "qty": 500, "avgPrice": 410.00, "currentPrice": 425.75},
-        {"symbol": "SBIN", "qty": 100, "avgPrice": 600.25, "currentPrice": 750.80},
-    ]
-    return {"status": "success", "data": holdings}
-
-@app.post("/api/breeze/order")
-async def place_breeze_order(order: OrderRequest):
-    """
-    Places an order on ICICI Breeze.
-    """
-    import random, time
-    time.sleep(0.5)
-
-    order_id = f"BR{random.randint(100000000, 999999999)}"
-    
-    order_data = {
-        "id": order_id,
-        "symbol": order.tradingsymbol,
-        "type": order.transaction_type,
-        "qty": order.quantity,
-        "price": order.price if order.order_type != 'MARKET' else 'MKT',
-        "status": "COMPLETE",
-        "time": time.strftime("%H:%M:%S"),
-        "exchange": order.exchange,
-        "broker": "ICICI_BREEZE"
-    }
-
-    return {
-        "status": "success",
-        "data": {"order_id": order_id},
-        "order": order_data
-    }
+@app.get("/api/health")
+async def health(): return {"status": "running", "stocks_loaded": len(FULL_NSE_500_LIST)}
